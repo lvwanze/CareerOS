@@ -1,0 +1,228 @@
+# CareerOS API 接口规范 V1.0
+
+## 1. 基本约定
+
+后端框架：FastAPI
+
+接口版本：V1
+
+基础路径：
+
+/api/v1
+
+数据格式：JSON
+
+字符编码：UTF-8
+
+请求方式：RESTful 风格。
+
+## 2. 统一响应结构
+
+成功响应：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {},
+  "request_id": "req_xxx"
+}
+```
+
+失败响应：
+
+```json
+{
+  "code": 422,
+  "message": "请求参数不符合要求",
+  "data": null,
+  "request_id": "req_xxx"
+}
+```
+
+注意：
+
+- HTTP 状态码表示 HTTP 请求处理状态。
+- code 表示业务处理状态。
+- Flutter 必须同时检查 HTTP 状态码和业务 code。
+- request_id 用于问题追踪。
+- FastAPI 自动生成的错误响应需要根据统一规范进行封装。
+
+## 3. 第一阶段核心接口
+
+### 3.1 职业推荐
+
+POST /api/v1/recommendations
+
+用途：
+
+接收用户画像，调用职业匹配算法，返回职业推荐结果、能力差距及发展路径。
+
+请求示例：
+
+```json
+{
+  "profile": {
+    "user_id": "user_001",
+    "learning_stage": {},
+    "preferences": {},
+    "skills": [],
+    "constraints": {},
+    "career_goals": {}
+  }
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "recommendations": [],
+    "development_paths": []
+  },
+  "request_id": "req_001"
+}
+```
+
+### 3.2 职业列表
+
+GET /api/v1/occupations
+
+用途：
+
+获取系统当前支持的职业列表。
+
+响应数据：
+
+- occupation_id
+- name
+- description
+- category
+
+是否第一阶段实现：待后端负责人确认。
+
+### 3.3 职业详情
+
+GET /api/v1/occupations/{occupation_id}
+
+用途：
+
+获取职业详情和关联技能要求。
+
+响应数据：
+
+- 职业基本信息。
+- 关联技能。
+- 技能重要程度。
+- 技能要求等级。
+
+是否第一阶段实现：待确认。
+
+### 3.4 健康检查
+
+GET /health
+
+用途：
+
+检查后端服务是否正常启动。
+
+响应示例：
+
+```json
+{
+  "status": "ok"
+}
+```
+
+## 4. 推荐结果字段
+
+recommendations：
+
+- occupation_id
+- occupation_name
+- match_score
+- matched_skills
+- skills_to_improve
+- skills_to_verify
+- recommendation_reasons
+
+development_paths：
+
+- path_id
+- occupation_id
+- nodes
+
+nodes：
+
+- node_id
+- skill_id
+- name
+- status
+- priority
+- description
+
+具体字段以 data_contract.md 为准。
+
+## 5. 错误处理
+
+建议统一处理：
+
+| HTTP 状态码 | 场景 |
+|---|---|
+| 200 | 请求成功 |
+| 400 | 请求业务条件不满足 |
+| 404 | 目标资源不存在 |
+| 422 | 参数格式或数据校验失败 |
+| 500 | 服务器内部异常 |
+
+错误响应不得直接暴露服务器内部堆栈、密钥或敏感信息。
+
+## 6. 参数校验
+
+后端使用 Pydantic 定义请求模型。
+
+至少校验：
+
+- 必填字段是否存在。
+- 字段类型是否正确。
+- 技能等级是否在 0～4 范围。
+- 职业和技能 ID 是否有效。
+- 列表字段是否符合要求。
+- 数值字段是否处于合理范围。
+
+## 7. 前后端交接约定
+
+后端负责人代旭：
+
+- 提供可访问的 API 地址。
+- 提供请求和响应示例。
+- 提供启动说明。
+- 说明接口是否已部署。
+- 提供测试数据。
+
+前端负责人吕宛泽：
+
+- 根据接口规范编写请求模型。
+- 处理加载、成功、失败状态。
+- 检查 HTTP 状态码和业务 code。
+- 不擅自修改字段名称。
+- 接口未部署时使用 Mock 数据。
+
+## 8. 接口版本管理
+
+第一阶段统一使用 /api/v1。
+
+公共字段发生不兼容变化时，需要同步通知前后端成员，并更新接口文档。
+
+## 9. 待确认事项
+
+- 推荐接口最终请求结构。
+- 推荐结果是否需要单独返回 SkillGap。
+- 发展路径由后端组织还是算法直接返回。
+- 是否需要用户画像独立保存接口。
+- 是否需要职业列表与详情接口。
+- request_id 的生成方式。
+- 统一错误响应的具体实现方式。
