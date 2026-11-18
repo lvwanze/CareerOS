@@ -27,7 +27,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# 项目根/data/processed，不硬编码绝对路径，换机器或换人 clone 都能跑
+# backend/data/processed
+# parents[0]=training  parents[1]=packages  parents[2]=backend
+# 不硬编码绝对路径，换机器或换人 clone 都能跑
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
 
 # 模型版本号，供 service 层写入 RecommendResponse.model_version

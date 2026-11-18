@@ -2,7 +2,7 @@
 """matcher 冒烟测试：加载、缓存、打分、字段契约。
 
 运行方式（在项目根目录）：
-    .venv\\Scripts\\python.exe tests\\smoke_test.py
+    .venv\\Scripts\\python.exe backend\\tests\\smoke_test.py
 
 不做 pytest 依赖，直接跑，失败即抛 AssertionError。
 """
