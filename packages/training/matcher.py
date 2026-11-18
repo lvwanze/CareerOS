@@ -159,8 +159,13 @@ def _normalize_evidence(value) -> str:
     Returns:
         EVIDENCE_LEVELS 中的某一个值，无法识别时返回 EVIDENCE_NONE。
 
-    未识别值只告警、不抛异常：证据字段永远不该让整个请求失败，
-    但要留痕，否则前端传错枚举值会静默变成「无证据」而没人发现。
+    未识别值只告警、不抛异常，这是本模块作为「被直接调用」时的防御：
+    matcher 可能被脚本、离线任务、单元测试直接使用，不该因为一个证据字段
+    就让整批计算中断。告警用于留痕，避免前端传错枚举值静默变成「无证据」。
+
+    注意与 API 层的分工：HTTP 边界由 service 层用 Pydantic Literal 校验，
+    未知值在那里就返回 422 并列出 7 个允许值，不会走到本函数。
+    因此本函数的宽容只影响直接调用场景，不构成对外的静默降级。
     """
     if value is None:
         return EVIDENCE_NONE
