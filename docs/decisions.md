@@ -55,7 +55,7 @@ CareerOS 分为第一阶段课程实训 MVP 和第二阶段个人毕业设计扩
 
 建议决策：
 
-优先使用 O*NET 和 ESCO 建立第一版职业技能知识库。
+优先使用 O*NET 建立第一版职业技能知识库。
 
 原因：
 
@@ -63,7 +63,7 @@ CareerOS 分为第一阶段课程实训 MVP 和第二阶段个人毕业设计扩
 
 注意：
 
-O*NET 和 ESCO 不能直接代表中国就业市场，需要保留来源信息并进行映射。
+O*NET 不能直接代表中国就业市场，需要保留来源信息并进行映射。
 
 ---
 
@@ -204,8 +204,14 @@ service 不直接调用 training 的训练脚本或训练入口。
 ## 变更记录
 
 | 版本 | 日期 | 修改内容 |
-|---|---|---|
-| V1.0 | 项目启动阶段 | 建立初始技术决策清单 |
+11-18 架构变更：数据契约对齐
+所有API响应统一为 { code, message, data, request_id } 结构
+CareerRecommendation 模型新增三个字段：
+matched_skills: 已掌握的匹配技能ID列表
+skills_to_improve: 需要提升的技能ID列表
+skills_to_verify: 需要验证的技能ID列表
+GapDetail 模型更名为 SkillGap 并更新字段
+
 
 说明：
 

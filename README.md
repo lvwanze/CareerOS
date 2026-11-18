@@ -42,7 +42,6 @@ CareerOS 希望将个人能力画像、职业技能知识库和就业市场数�
 数据来源：
 
 - O*NET：职业信息及职业技能要求。
-- ESCO：职业分类与技能关联信息。
 - 招聘市场数据：根据实际可获取的数据源，采集或整理岗位及技能需求信息。
 
 ---
@@ -132,7 +131,7 @@ CareerOS 希望将个人能力画像、职业技能知识库和就业市场数�
 
 主要工作：
 
-- 获取 O*NET / ESCO 职业与技能数据。
+- 获取 O*NET 职业与技能数据。
 - 清洗职业、技能信息。
 - 统一职业和技能名称。
 - 建立职业—技能映射关系。
@@ -216,75 +215,57 @@ CareerOS 希望将个人能力画像、职业技能知识库和就业市场数�
 
 ## 四、项目目录结构
 
-采用 Python 核心算法包与 Flutter 客户端分离的组织方式。
+前后端位于同一仓库的两个独立项目目录中：Flutter 只维护客户端代码，FastAPI 及算法、数据处理代码统一归入后端。
 
 ```text
-careeros/
-│
-├── configs/                     # 全局配置
-│   ├── features.yaml            # 技能特征定义
-│   └── settings.yaml            # 公共配置
-│
-├── data/                        # 数据目录（不提交原始大文件）
-│   ├── raw/                     # 原始职业及招聘数据
-│   ├── processed/               # 清洗后的结构化数据
-│   ├── FROZEN.json              # 数据集指纹（后续完善）
-│   └── manifest.json            # 数据集元信息
-│
-├── docs/                        # 项目文档
-│   ├── problem.md               # 问题定义
-│   ├── spec.md                  # 业务口径与数据规范
-│   ├── decisions.md             # 技术决策记录
-│   ├── data_card.md             # 数据说明
-│   └── model_card.md            # 算法说明
-│
-├── packages/                    # Python 核心代码
-│   │
-│   ├── core/                    # 公共数据模型与契约
-│   │   ├── schemas.py
-│   │   └── constants.py
-│   │
-│   ├── training/                # 算法与模型
-│   │   ├── matcher.py           # 职业匹配算法
-│   │   ├── skill_gap.py         # 能力差距分析
-│   │   └── recommendation.py    # 职业推荐
-│   │
-│   └── service/                 # FastAPI 后端
-│       ├── main.py
-│       ├── routes/
-│       └── utils/
-│
-├── scripts/                     # 数据及算法执行入口
-│   ├── build_dataset.py         # 职业知识库构建
-│   ├── train.py                 # 算法实验入口（按需）
-│   └── check_drift.py           # 漂移检查（后续扩展）
-│
-├── tests/                       # 自动化测试
-│   ├── test_matcher.py
-│   ├── test_skill_gap.py
-│   └── test_api.py
-│
-├── apps/
-│   └── admin-web/               # 预留，不作为当前前端入口
-│
-├── requirements.txt
+CareerOS/
+├── frontend/                    # Flutter 项目
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── models/
+│   │   └── services/
+│   ├── pubspec.yaml
+│   └── pubspec.lock
+├── backend/                     # FastAPI 与算法项目
+│   ├── packages/
+│   │   ├── core/
+│   │   ├── service/routers/
+│   │   └── training/
+│   ├── configs/
+│   ├── data/
+│   ├── scripts/
+│   ├── tests/
+│   ├── .venv/                    # 本地环境，不提交 Git
+│   └── requirements.txt
+├── docs/
 ├── .gitignore
 └── README.md
 ```
 
-Flutter 客户端采用独立仓库管理：
+### 本地启动
 
-```text
-careeros_flutter/
-├── lib/
-│   ├── models/                  # 数据模型
-│   ├── services/                # API 请求
-│   ├── pages/                   # 页面
-│   ├── widgets/                 # 公共组件
-│   └── main.dart
-│
-├── assets/
-└── pubspec.yaml
+后端在 `backend/` 目录运行：
+
+```powershell
+cd backend
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+uvicorn packages.service.main:app --reload
+```
+
+运行后端测试：
+
+```powershell
+cd backend
+pytest
+```
+
+前端在另一个终端运行：
+
+```powershell
+cd frontend
+flutter pub get
+flutter run
 ```
 
 ### 模块边界
@@ -306,7 +287,7 @@ careeros_flutter/
 ### 5.1 数据准备
 
 ```text
-O*NET / ESCO
+O*NET 
       │
       ▼
 职业与技能原始数据
