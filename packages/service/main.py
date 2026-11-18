@@ -43,3 +43,15 @@ async def add_engine_header(request, call_next):
 
 app.include_router(health.router)
 app.include_router(recommendations.router, prefix=API_PREFIX)
+
+
+@app.get("/")
+def root():
+    """根路径指路牌：避免访问根地址看到 404 误判服务未启动。"""
+    return {
+        "service": "CareerOS API",
+        "version": app.version,
+        "docs": "/docs",
+        "health": "/health",
+        "ready": "/ready",
+    }
