@@ -6,8 +6,9 @@
 
 对外入口
 --------
-recommend(profile, top_k=5) -> list[dict]
+recommend(profile, top_k=5, diversity_theta=0.90) -> list[dict]
     输入用户画像，返回按 match_score 降序排列的推荐结果列表。
+    返回条数在 [0, top_k] 之间，不保证等于 top_k。
 
 输出字段严格遵循 docs/data_contract.md：
     3.5 Recommendation：occupation_id / occupation_name / match_score /
@@ -42,6 +43,26 @@ LEVEL_MAX = 4            # 用户自评等级上限（data_contract 2.2）
 STATUS_MASTERED = "mastered"
 STATUS_IMPROVE = "needs_improvement"
 STATUS_VERIFY = "needs_verification"
+
+# 能力证据枚举。契约 3.1 只写了 str、第 8 节把具体枚举列为待确认，
+# 本模块先按下面这一版执行，等服务层定稿后同步。
+#
+# 归一化规则：先 strip + lower，再查白名单；
+# 缺失 / null / 空串 / 纯空白 / 未知值，一律按 EVIDENCE_NONE 处理。
+# 方向是「宁可判待验证」——无效值不能把技能误判成 mastered，
+# 否则前端拼错一个词，用户就凭空多出一批「已达标」。
+EVIDENCE_NONE = "none"
+EVIDENCE_LEVELS = frozenset(
+    {
+        EVIDENCE_NONE,   # 无证据（默认）
+        "self",          # 用户自述
+        "course",        # 课程 / 培训
+        "project",       # 项目经历
+        "work",          # 工作 / 实习
+        "certificate",   # 证书 / 认证
+        "test",          # 客观测试
+    }
+)
 
 # 模块级缓存：首次调用时装载，之后直接复用，避免每个请求都读盘
 _CACHE: dict | None = None
@@ -129,6 +150,29 @@ def _load_data() -> dict:
 # --------------------------------------------------------------------------
 # 二、单项技能的判定与达标度
 # --------------------------------------------------------------------------
+def _normalize_evidence(value) -> str:
+    """把任意 evidence_level 入参归一成白名单里的值。
+
+    Args:
+        value: 原始入参，可能是 None、空串、带空白、大小写混杂或未知字符串。
+
+    Returns:
+        EVIDENCE_LEVELS 中的某一个值，无法识别时返回 EVIDENCE_NONE。
+
+    未识别值只告警、不抛异常：证据字段永远不该让整个请求失败，
+    但要留痕，否则前端传错枚举值会静默变成「无证据」而没人发现。
+    """
+    if value is None:
+        return EVIDENCE_NONE
+    text = str(value).strip().lower()
+    if not text:
+        return EVIDENCE_NONE
+    if text in EVIDENCE_LEVELS:
+        return text
+    logger.warning("未知 evidence_level=%r，按无证据处理", value)
+    return EVIDENCE_NONE
+
+
 def _achievement(self_level: int, required_level: int) -> float:
     """技能达成度，取值 [0, 1]。
 
@@ -244,12 +288,19 @@ def _normalize_profile(profile: dict) -> dict:
                 f"技能 {skill_id} 的自评等级 {self_level} 超出允许范围 "
                 f"[{LEVEL_MIN}, {LEVEL_MAX}]"
             )
-        user_skills[skill_id] = (self_level, item.get("evidence_level") or "none")
+        user_skills[skill_id] = (
+            self_level,
+            _normalize_evidence(item.get("evidence_level")),
+        )
 
     return user_skills
 
 
-def recommend(profile: dict, top_k: int = TOP_K_DEFAULT) -> list:
+def recommend(
+    profile: dict,
+    top_k: int = TOP_K_DEFAULT,
+    diversity_theta: float = DIVERSITY_THETA,
+) -> list:
     """根据用户画像推荐 Top-K 职业。
 
     参数
@@ -258,12 +309,21 @@ def recommend(profile: dict, top_k: int = TOP_K_DEFAULT) -> list:
         形如 {"user_id": "...", "skills": [{"skill_id": ..., "self_level": 3,
         "evidence_level": "project"}, ...]}
     top_k : int
-        返回条数，默认 5。上界由调用方控制，算法内部不写死常量。
+        期望返回条数，默认 5。上界由调用方控制，算法内部不写死常量。
+    diversity_theta : float
+        相似职业剔除阈值，Jaccard 超过该值的职业只保留分数高的一个。
+        默认 0.90。设为 >= 1.0 即关闭去重（任何两职业都不会超过 1.0）。
 
     返回
     ----
-    list[dict]，每项包含 data_contract 3.5 规定的七个字段。
-    按 match_score 降序；分数相同时按 occupation_id 升序，保证结果确定。
+    list[dict]，每项包含 data_contract 3.5 规定的七个字段，外加 skill_gaps。
+
+    条数约定：返回长度在 [0, top_k] 之间，**不保证等于 top_k**。
+    去重后可选出的职业数量是有限的（theta=0.90 时最多 25 个），
+    若 top_k 超过该上限则实际返回更少。调用方与前端必须按
+    「最多 top_k 张卡片」渲染，不能写死 top_k。
+
+    排序：按 match_score 降序；分数相同时按 occupation_id 升序，保证结果确定。
     """
     data = _load_data()
     user_skills = _normalize_profile(profile)
@@ -287,7 +347,7 @@ def recommend(profile: dict, top_k: int = TOP_K_DEFAULT) -> list:
         # 相似职业去重：与已入选的任一职业 Jaccard 过高则跳过，
         # 否则 Software Developers 与 Blockchain Engineers 会同时占据前二
         if any(
-            _jaccard(occupation_id, picked, data["skill_sets"]) > DIVERSITY_THETA
+            _jaccard(occupation_id, picked, data["skill_sets"]) > diversity_theta
             for picked in picked_ids
         ):
             continue
@@ -321,4 +381,11 @@ def recommend(profile: dict, top_k: int = TOP_K_DEFAULT) -> list:
     return results
 
 
-__all__ = ["recommend", "MODEL_VERSION", "TOP_K_DEFAULT", "DIVERSITY_THETA"]
+__all__ = [
+    "recommend",
+    "MODEL_VERSION",
+    "TOP_K_DEFAULT",
+    "DIVERSITY_THETA",
+    "EVIDENCE_LEVELS",
+    "EVIDENCE_NONE",
+]

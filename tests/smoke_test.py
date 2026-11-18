@@ -157,7 +157,65 @@ def main():
         print(f"   {label}：5 项职业与分数全部落在容差内  ✓")
 
     print("=" * 72)
-    print("7. 两条边界")
+    print("7. 类型与 JSON 可序列化")
+    import json as _json
+
+    for item in high + low:
+        assert type(item["match_score"]) is float, (
+            f"match_score 不是 Python float 而是 {type(item['match_score'])}，"
+            f"JSON 序列化会抛 TypeError"
+        )
+        for gap in item["skill_gaps"]:
+            for key in ("current_level", "required_level", "gap"):
+                assert type(gap[key]) is int, (
+                    f"skill_gaps.{key} 不是 Python int 而是 {type(gap[key])}"
+                )
+    _json.dumps(high)  # 不能抛 TypeError
+    print("   match_score=float、等级字段=int、json.dumps 通过  ✓")
+
+    print("=" * 72)
+    print("8. evidence_level 归一化")
+    SID = "SKILL-ONET-2.B.3.e"  # Programming，要求 3 级
+    # 自评 4 级已超过要求，能否判 mastered 完全取决于证据字段
+    cases = [
+        (None, "needs_verification"),
+        ("", "needs_verification"),
+        ("   ", "needs_verification"),
+        ("none", "needs_verification"),
+        ("NONE", "needs_verification"),
+        ("None", "needs_verification"),
+        (" non ", "needs_verification"),
+        ("projct", "needs_verification"),   # 拼错的枚举值不能算作有证据
+        ("xxx", "needs_verification"),
+        ("project", "mastered"),
+        ("  Project  ", "mastered"),
+        ("test", "mastered"),
+    ]
+    for raw, expected in cases:
+        res = recommend(
+            {"skills": [{"skill_id": SID, "self_level": 4, "evidence_level": raw}]},
+            top_k=1,
+        )[0]
+        got = next(g["status"] for g in res["skill_gaps"] if g["skill_id"] == SID)
+        assert got == expected, f"evidence_level={raw!r} 判定为 {got}，期望 {expected}"
+    print(f"   {len(cases)} 种输入：缺失/空串/空白/大小写/拼错 -> 待验证，合法值 -> 已具备  ✓")
+
+    print("=" * 72)
+    print("9. 去重阈值可配与返回条数上界")
+    no_dedup = recommend(PROFILE_HIGH, top_k=28, diversity_theta=1.01)
+    dedup = recommend(PROFILE_HIGH, top_k=28, diversity_theta=0.90)
+    print(f"   theta=1.01（关闭去重）：{len(no_dedup)} 条")
+    print(f"   theta=0.90（默认）    ：{len(dedup)} 条")
+    assert len(no_dedup) == 28, f"关闭去重后应有 28 条，实际 {len(no_dedup)}"
+    assert len(dedup) < 28, "去重没有生效"
+    assert len(dedup) >= 5, "去重后不足以凑满 top_k=5"
+    five = recommend(PROFILE_HIGH, top_k=5, diversity_theta=0.90)
+    assert [x["occupation_id"] for x in five] == [x["occupation_id"] for x in high], \
+        "默认 theta 下结果应与不传参一致"
+    print("   阈值生效、关闭去重可恢复 28 条、默认行为未变  ✓")
+
+    print("=" * 72)
+    print("10. 三条边界")
     empty = recommend({"user_id": "u0", "skills": []}, top_k=5)
     print(f"   空画像：返回 {len(empty)} 条，最高分 {empty[0]['match_score']:.3f}")
     assert len(empty) == 5 and all(x["match_score"] == 0.0 for x in empty)
@@ -165,6 +223,9 @@ def main():
     one = recommend(PROFILE_HIGH, top_k=1)
     print(f"   top_k=1：返回 {len(one)} 条  -> {one[0]['occupation_name']}")
     assert len(one) == 1
+
+    assert recommend(PROFILE_HIGH, top_k=0) == [], "top_k=0 应返回空列表"
+    print("   top_k=0：返回空列表  ✓")
 
     try:
         recommend({"skills": [{"skill_id": "SKILL-ONET-2.B.3.e", "self_level": 9}]})
