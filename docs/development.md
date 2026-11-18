@@ -2,59 +2,33 @@
 
 ## 1. 项目工程结构
 
-Python 后端及算法主仓库：
+项目采用同仓库双项目结构，前端和后端各自维护依赖及启动方式：
 
 ```text
 careeros/
-├── configs/
-│   └── settings.yaml
-│
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   ├── manifest.json
-│   └── FROZEN.json
-│
+├── frontend/
+│   ├── lib/
+│   │   ├── main.dart
+│   │   ├── models/
+│   │   └── services/
+│   ├── pubspec.yaml
+│   └── pubspec.lock
+├── backend/
+│   ├── configs/
+│   ├── data/
+│   ├── packages/
+│   │   ├── core/
+│   │   ├── service/routers/
+│   │   └── training/
+│   ├── scripts/
+│   ├── tests/
+│   ├── .venv/
+│   └── requirements.txt
 ├── docs/
-│   ├── problem.md
-│   ├── data_contract.md
-│   ├── api_spec.md
-│   ├── development.md
-│   └── decisions.md
-│
-├── packages/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   └── schemas.py
-│   │
-│   ├── training/
-│   │
-│   └── service/
-│
-├── scripts/
-│   ├── build_dataset.py
-│   ├── train.py
-│   └── check_drift.py
-│
-├── tests/
-│
-├── requirements.txt
 └── README.md
 ```
 
-Flutter 客户端使用独立仓库：
-
-```text
-careeros_flutter/
-├── lib/
-│   ├── models/
-│   ├── pages/
-│   ├── services/
-│   ├── widgets/
-│   └── main.dart
-├── assets/
-└── pubspec.yaml
-```
+在根目录维护共享文档；Flutter 与 Python 依赖、源码和测试分别留在 `frontend/` 与 `backend/`。
 
 ## 2. 模块职责边界
 
