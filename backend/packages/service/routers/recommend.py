@@ -17,7 +17,13 @@ router = APIRouter(prefix="/api/v1", tags=["recommend"])
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
 
+def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
+	with (DATA_DIR / "reference" / filename).open(encoding="utf-8", newline="") as file:
+		return {row[id_field]: row["name_zh"] for row in csv.DictReader(file)}
+
+
 def _load_used_skills() -> list[SkillOption]:
+	skill_names_zh = _load_name_mapping("skill_name_zh.csv", "skill_id")
 	with (DATA_DIR / "processed" / "occupation_skills.csv").open(encoding="utf-8", newline="") as file:
 		used_skill_ids = {row["skill_id"] for row in csv.DictReader(file)}
 
@@ -26,6 +32,7 @@ def _load_used_skills() -> list[SkillOption]:
 			SkillOption(
 				skill_id=row["skill_id"],
 				name=row["name"],
+				name_zh=skill_names_zh.get(row["skill_id"], row["name"]),
 				category=row["category"],
 				used_in_kb=True,
 			)
@@ -35,8 +42,11 @@ def _load_used_skills() -> list[SkillOption]:
 
 
 def _load_occupation_requirements() -> list[dict]:
+	skill_names = {}
 	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
 		skill_names = {row["skill_id"]: row["name"] for row in csv.DictReader(file)}
+	skill_names_zh = _load_name_mapping("skill_name_zh.csv", "skill_id")
+	occupation_names_zh = _load_name_mapping("occupation_name_zh.csv", "occupation_id")
 
 	occupations = {}
 	with (DATA_DIR / "processed" / "occupations.csv").open(encoding="utf-8", newline="") as file:
@@ -44,6 +54,7 @@ def _load_occupation_requirements() -> list[dict]:
 			occupations[row["occupation_id"]] = {
 				"occupation_id": row["occupation_id"],
 				"occupation_name": row["name"],
+				"occupation_name_zh": occupation_names_zh.get(row["occupation_id"], row["name"]),
 				"skills": [],
 			}
 
@@ -54,6 +65,9 @@ def _load_occupation_requirements() -> list[dict]:
 				occupation["skills"].append({
 					"skill_id": row["skill_id"],
 					"skill_name": skill_names.get(row["skill_id"], row["skill_id"]),
+					"skill_name_zh": skill_names_zh.get(
+						row["skill_id"], skill_names.get(row["skill_id"], row["skill_id"])
+					),
 					"importance": float(row["importance"]),
 					"required_level": int(row["required_level"]),
 				})
@@ -87,7 +101,7 @@ async def recommend(request: RecommendationRequest):
 				DevelopmentNode(
 					node_id=f"{recommendation.occupation_id}-{gap.skill_id}",
 					skill_id=gap.skill_id,
-					name=gap.skill_name or gap.skill_id,
+					name=gap.skill_name_zh or gap.skill_name or gap.skill_id,
 					status="not_started",
 					priority=index,
 					description=f"将技能水平从 {gap.current_level} 提升至 {gap.required_level}",

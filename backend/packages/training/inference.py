@@ -32,6 +32,7 @@ def generate_recommendations(
 			skill_gaps.append(SkillGap(
 				skill_id=skill_id,
 				skill_name=requirement["skill_name"],
+				skill_name_zh=requirement.get("skill_name_zh"),
 				gap=gap,
 				importance=importance,
 				status=status,
@@ -50,6 +51,7 @@ def generate_recommendations(
 		results.append(CareerRecommendation(
 			occupation_id=occupation["occupation_id"],
 			occupation_name=occupation["occupation_name"],
+			occupation_name_zh=occupation.get("occupation_name_zh"),
 			match_score=match_score,
 			skill_gaps=skill_gaps,
 			recommendation_reasons=["技能匹配度基于职业技能重要度加权计算"],
