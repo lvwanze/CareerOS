@@ -6,6 +6,7 @@ from packages.core.schemas import (
     CareerTreeResponseData,
     TreeNode,
 )
+from packages.service.routers.health import router as health_router
 from packages.service.routers.occupations import router as occupations_router
 from packages.service.routers.recommend import router as recommend_router
 
@@ -22,10 +23,7 @@ app.add_middleware(
 )
 app.include_router(recommend_router)
 app.include_router(occupations_router)
-
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "message": "CareerOS API is running"}
+app.include_router(health_router)
 
 @app.get("/v1/tree/{occupation_id}", response_model=CareerTreeResponse)
 def get_career_tree(occupation_id: str):
