@@ -21,9 +21,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.include_router(recommend_router)
 app.include_router(occupations_router)
 app.include_router(health_router)
+
+
+@app.get("/")
+def show_route_index():
+    # 根路径给个索引，免得打开服务地址看到 Not Found 以为服务挂了
+    return {
+        "service": "CareerOS API",
+        "docs": "/docs",
+        "routes": [
+            "GET  /health",
+            "GET  /ready",
+            "GET  /api/v1/skills",
+            "POST /api/v1/recommendations",
+            "GET  /api/v1/occupations",
+            "GET  /v1/tree/{occupation_id}",
+        ],
+    }
+
 
 @app.get("/v1/tree/{occupation_id}", response_model=CareerTreeResponse)
 def get_career_tree(occupation_id: str):
