@@ -12,4 +12,4 @@ backend/predictions.jsonl
 backend/mlflow/
 .pytest_cache/
 .mypy_cache/
-.ruff_cache/
+.ruff_cache/_main_check/
