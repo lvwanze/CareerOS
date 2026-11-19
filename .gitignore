@@ -4,12 +4,16 @@ frontend/build/
 __pycache__/
 *.pyc
 .env
+!frontend/.env
 backend/data/raw/
 backend/data/processed/
+!backend/data/reference/
+!backend/data/reference/**
+_main_check/
 backend/models/*
 !backend/models/.gitkeep
 backend/predictions.jsonl
 backend/mlflow/
 .pytest_cache/
 .mypy_cache/
-.ruff_cache/_main_check/
+.ruff_cache/

@@ -134,7 +134,14 @@ def _reasons_from_gaps(gaps: list[dict], skill_name_zh: dict, limit: int = 4) ->
 def _to_model(raw: dict, occ_name_zh: dict, skill_name_zh: dict, importance: dict) -> CareerRecommendation:
 	"""matcher 的单条推荐 dict -> CareerRecommendation 模型。"""
 	occupation_id = raw["occupation_id"]
-	gaps = raw["skill_gaps"]
+
+	# matcher 内部按权重（importance_norm × idf）排序，那是为了算分和挑推荐依据。
+	# 对外展示要求「重要的技能排前面」，所以这里按原始 importance 重排一次。
+	gaps = sorted(
+		raw["skill_gaps"],
+		key=lambda gap: importance.get((occupation_id, gap["skill_id"])) or 0.0,
+		reverse=True,
+	)
 
 	return CareerRecommendation(
 		occupation_id=occupation_id,
