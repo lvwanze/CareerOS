@@ -1,0 +1,36 @@
+﻿skill_id,name_en,name_zh
+SKILL-ONET-2.A.1.a,Reading Comprehension,阅读理解
+SKILL-ONET-2.A.1.b,Active Listening,积极倾听
+SKILL-ONET-2.A.1.c,Writing,写作
+SKILL-ONET-2.A.1.d,Speaking,口语表达
+SKILL-ONET-2.A.1.e,Mathematics,数学
+SKILL-ONET-2.A.1.f,Science,科学
+SKILL-ONET-2.A.2.a,Critical Thinking,批判性思维
+SKILL-ONET-2.A.2.b,Active Learning,主动学习
+SKILL-ONET-2.A.2.c,Learning Strategies,学习策略
+SKILL-ONET-2.A.2.d,Monitoring,过程监控
+SKILL-ONET-2.B.1.a,Social Perceptiveness,社会洞察力
+SKILL-ONET-2.B.1.b,Coordination,协调能力
+SKILL-ONET-2.B.1.c,Persuasion,说服能力
+SKILL-ONET-2.B.1.d,Negotiation,谈判能力
+SKILL-ONET-2.B.1.e,Instructing,教学指导
+SKILL-ONET-2.B.1.f,Service Orientation,服务导向
+SKILL-ONET-2.B.2.i,Complex Problem Solving,复杂问题解决
+SKILL-ONET-2.B.3.a,Operations Analysis,运营分析
+SKILL-ONET-2.B.3.b,Technology Design,技术设计
+SKILL-ONET-2.B.3.c,Equipment Selection,设备选型
+SKILL-ONET-2.B.3.d,Installation,安装调试
+SKILL-ONET-2.B.3.e,Programming,编程
+SKILL-ONET-2.B.3.g,Operations Monitoring,运营监控
+SKILL-ONET-2.B.3.h,Operation and Control,运行控制
+SKILL-ONET-2.B.3.j,Equipment Maintenance,设备维护
+SKILL-ONET-2.B.3.k,Troubleshooting,故障排查
+SKILL-ONET-2.B.3.l,Repairing,维修
+SKILL-ONET-2.B.3.m,Quality Control Analysis,质量控制分析
+SKILL-ONET-2.B.4.e,Judgment and Decision Making,判断与决策
+SKILL-ONET-2.B.4.g,Systems Analysis,系统分析
+SKILL-ONET-2.B.4.h,Systems Evaluation,系统评估
+SKILL-ONET-2.B.5.a,Time Management,时间管理
+SKILL-ONET-2.B.5.b,Management of Financial Resources,财务资源管理
+SKILL-ONET-2.B.5.c,Management of Material Resources,物资资源管理
+SKILL-ONET-2.B.5.d,Management of Personnel Resources,人力资源调配
