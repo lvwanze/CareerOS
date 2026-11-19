@@ -1,78 +1,160 @@
 # -*- coding: utf-8 -*-
-"""推理层：把算法输出转换成 API 契约模型。
+"""推理层：把 matcher 的算法输出转换成 API 契约模型。
 
-分层职责（配合组长确定的「方案二：matcher 与 inference 并存」）
-------------------------------------------------------------------
-  matcher.py    纯算法实现。只依赖 pandas / numpy，不 import FastAPI，
-                返回普通 dict，方便单独测试和离线评估。
-  inference.py  适配层（本文件）。import matcher 和 core.schemas，
-                负责把 dict 转成 Pydantic 模型，是 service 层唯一的调用入口。
-  routers/      只做 HTTP 校验、异常映射和响应包装，不碰算法细节。
+分层职责
+--------
+  matcher.py    纯算法实现。只依赖 pandas / numpy，不 import FastAPI。
+                权重、达成度、三档判定、相似职业去重都在这里。
+  inference.py  适配层（本文件）。接收 service 层组装好的
+                occupation_requirements，转成 matcher 的索引结构算分，
+                再把 dict 结果转成 Pydantic 模型。
+  routers/      HTTP 校验、异常映射、响应包装，不碰算法细节。
 
-为什么不让路由直接调 matcher：
+为什么算法不让路由直接调：
   matcher 返回的是 dict，字段名和类型都不会被校验。前端拿到 gap 是 int
   还是 float、match_score 超没超过 1，全靠约定。经过 Pydantic 这一层，
   契约错在服务端就暴露，不会漏到前端变成运行时崩溃。
 
+为什么要有「数据注入」这条路：
+  路由已经把三张表组装成 occupation_requirements（还附带中英文名），
+  算法再自己读一遍 CSV 就重复了，而且两份数据可能不同步。
+  所以 matcher 提供了 build_index / recommend_from_index，
+  这里用它构建索引，保证在线服务和离线评估跑的是同一套权重和判定。
+
 对外入口
 --------
-generate_recommendations(profile, top_k=5, diversity_theta=0.90)
+generate_recommendations(user_skills, occupation_requirements, limit=5)
     返回 list[CareerRecommendation]，已通过模型校验。
 
-build_response_data(profile, user_id=None, top_k=5)
-    返回 RecommendResponseData，即响应体 data 字段的完整结构。
+参数
+----
+user_skills : dict[str, int | dict]
+    {skill_id: 等级} 或 {skill_id: {"level": 3, "evidence": "project"}}。
+    只给 int 时按「自述证据（self）」处理——用户确实自己填了等级，
+    但不是所有场景都需要区分证据强度；需要时传 dict 即可，无需改接口。
 
-输入格式
---------
-profile = {
-    "user_id": "u_001",                       # 可选，缺失时由调用方补
-    "skills": [
-        {"skill_id": "SKILL-ONET-2.B.3.e",
-         "self_level": 4,                     # 必填，整数 0~4
-         "evidence_level": "project"},        # 可选，缺省按 none 处理
-    ],
-}
+occupation_requirements : list[dict]
+    [{"occupation_id", "occupation_name", "occupation_name_zh",
+      "skills": [{"skill_id", "skill_name", "skill_name_zh",
+                  "importance", "required_level"}]}]
 """
 from __future__ import annotations
 
 import logging
 
+import pandas as pd
+
 from packages.core.schemas import (
 	CareerRecommendation,
-	RecommendResponseData,
 	SkillGap,
 )
-from packages.training.matcher import MODEL_VERSION, recommend
+from packages.training.matcher import (
+	MODEL_VERSION,
+	build_index,
+	recommend_from_index,
+)
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["generate_recommendations", "build_response_data", "MODEL_VERSION"]
+__all__ = ["generate_recommendations", "MODEL_VERSION"]
+
+# 用户只填等级、没填证据时的默认值。
+# 用 "self" 而不是 "none"：用户主动自评本身就是一种证据，
+# 若用 "none" 会把所有技能都判成「待验证」，界面上满屏待验证。
+DEFAULT_EVIDENCE = "self"
 
 
-def _to_skill_gap(raw: dict) -> SkillGap:
-	"""matcher 的差距明细 dict -> SkillGap 模型。
+def _iter_skill_items(user_skills: dict):
+	"""把两种入参格式统一成 (skill_id, level, evidence) 三元组。"""
+	for skill_id, value in user_skills.items():
+		if isinstance(value, dict):
+			level = value.get("level", value.get("self_level", 0))
+			evidence = value.get("evidence", value.get("evidence_level"))
+		else:
+			level = value
+			evidence = None
+		yield skill_id, level, evidence or DEFAULT_EVIDENCE
 
-	注意：schemas.SkillGap 里没有 skill_name 字段，matcher 多返回的这个键
-	只给前端展示用，在这里被静默丢弃。如果以后契约要加，改 schemas，
-	不要在这里塞进 extra 字段绕过校验。
+
+def _prepare(occupation_requirements: list[dict]):
+	"""把路由组装的数据转成 matcher 的索引，同时留下展示用的查表。
+
+	返回 (index, occ_name_zh, skill_name_zh, importance)
 	"""
-	return SkillGap(
-		skill_id=raw["skill_id"],
-		gap=raw["gap"],
-		status=raw["status"],
-		current_level=raw["current_level"],
-		required_level=raw["required_level"],
-	)
+	rows = []
+	occ_names: dict[str, str] = {}
+	occ_name_zh: dict[str, str | None] = {}
+	skill_names: dict[str, str] = {}
+	skill_name_zh: dict[str, str | None] = {}
+	importance: dict[tuple[str, str], float | None] = {}
+
+	for occupation in occupation_requirements:
+		occupation_id = occupation["occupation_id"]
+		occ_names[occupation_id] = occupation.get("occupation_name") or occupation_id
+		occ_name_zh[occupation_id] = occupation.get("occupation_name_zh")
+
+		for skill in occupation.get("skills") or []:
+			skill_id = skill["skill_id"]
+			skill_names.setdefault(skill_id, skill.get("skill_name") or skill_id)
+			skill_name_zh.setdefault(skill_id, skill.get("skill_name_zh"))
+			importance[(occupation_id, skill_id)] = skill.get("importance")
+			rows.append(
+				{
+					"occupation_id": occupation_id,
+					"skill_id": skill_id,
+					"importance": skill.get("importance", 0.0),
+					"required_level": skill.get("required_level", 0),
+				}
+			)
+
+	index = build_index(pd.DataFrame(rows), occ_names, skill_names)
+	return index, occ_name_zh, skill_name_zh, importance
 
 
-def _to_recommendation(raw: dict) -> CareerRecommendation:
+def _reasons_from_gaps(gaps: list[dict], skill_name_zh: dict, limit: int = 4) -> list[str]:
+	"""用中文技能名生成推荐依据。
+
+	规则与 matcher._build_reasons 一致（先说 2 条已达标的，再补缺口 ≥2 的），
+	区别只在于这里能拿到中文名。matcher 不碰中文，展示层的拼装放在适配层。
+	"""
+
+	def label(skill_id: str) -> str:
+		return skill_name_zh.get(skill_id) or skill_id
+
+	reasons: list[str] = []
+	for gap in gaps:
+		if gap["status"] == "mastered" and len(reasons) < 2:
+			reasons.append(f"{label(gap['skill_id'])} 已达标")
+	for gap in gaps:
+		if gap["status"] == "needs_improvement" and gap["gap"] >= 2 and len(reasons) < limit:
+			reasons.append(f"{label(gap['skill_id'])} 还差 {gap['gap']} 级")
+	return reasons
+
+
+def _to_model(raw: dict, occ_name_zh: dict, skill_name_zh: dict, importance: dict) -> CareerRecommendation:
 	"""matcher 的单条推荐 dict -> CareerRecommendation 模型。"""
+	occupation_id = raw["occupation_id"]
+	gaps = raw["skill_gaps"]
+
 	return CareerRecommendation(
-		occupation_id=raw["occupation_id"],
+		occupation_id=occupation_id,
 		occupation_name=raw["occupation_name"],
+		occupation_name_zh=occ_name_zh.get(occupation_id),
 		match_score=raw["match_score"],
-		skill_gaps=[_to_skill_gap(g) for g in raw["skill_gaps"]],
-		recommendation_reasons=raw["recommendation_reasons"],
+		skill_gaps=[
+			SkillGap(
+				skill_id=gap["skill_id"],
+				skill_name=gap.get("skill_name"),
+				skill_name_zh=skill_name_zh.get(gap["skill_id"]),
+				gap=gap["gap"],
+				importance=importance.get((occupation_id, gap["skill_id"])),
+				status=gap["status"],
+				current_level=gap["current_level"],
+				required_level=gap["required_level"],
+			)
+			for gap in gaps
+		],
+		recommendation_reasons=_reasons_from_gaps(gaps, skill_name_zh),
 		matched_skills=raw["matched_skills"],
 		skills_to_improve=raw["skills_to_improve"],
 		skills_to_verify=raw["skills_to_verify"],
@@ -80,39 +162,34 @@ def _to_recommendation(raw: dict) -> CareerRecommendation:
 
 
 def generate_recommendations(
-	profile: dict,
-	top_k: int = 5,
-	diversity_theta: float = 0.90,
+	user_skills: dict,
+	occupation_requirements: list[dict],
+	limit: int = 5,
 ) -> list[CareerRecommendation]:
 	"""跑匹配算法并转换成契约模型。
 
-	返回条数在 [0, top_k] 之间，**不保证等于 top_k**。
-	调用方和前端都要按「最多 top_k 条」处理，不能写死。
+	返回条数在 [0, limit] 之间，**不保证等于 limit**：
+	相似职业被去重后可选数量会变少，调用方不能写死 5。
 	"""
-	raw_results = recommend(profile, top_k=top_k, diversity_theta=diversity_theta)
-	return [_to_recommendation(item) for item in raw_results]
+	if not user_skills or not occupation_requirements:
+		return []
 
+	index, occ_name_zh, skill_name_zh, importance = _prepare(occupation_requirements)
 
-def build_response_data(
-	profile: dict,
-	user_id: str | None = None,
-	top_k: int = 5,
-	diversity_theta: float = 0.90,
-) -> RecommendResponseData:
-	"""组装响应体的 data 部分。
+	profile = {
+		"skills": [
+			{
+				"skill_id": skill_id,
+				"self_level": level,
+				"evidence_level": evidence,
+			}
+			for skill_id, level, evidence in _iter_skill_items(user_skills)
+		]
+	}
 
-	user_id 优先取显式传入的值（通常来自鉴权上下文），
-	其次回退到画像里的 user_id，都没有就空串——不在这里抛错，
-	因为 user_id 的合法性属于路由层的校验职责。
-	"""
-	resolved_user_id = user_id or profile.get("user_id") or ""
-	if not resolved_user_id:
-		logger.warning("build_response_data 未拿到 user_id，响应里将为空串")
+	raw_results = recommend_from_index(index, profile, top_k=limit)
+	if not raw_results:
+		logger.info("本轮未产生推荐：输入 %d 项技能", len(user_skills))
+		return []
 
-	return RecommendResponseData(
-		user_id=resolved_user_id,
-		model_version=MODEL_VERSION,
-		recommendations=generate_recommendations(
-			profile, top_k=top_k, diversity_theta=diversity_theta
-		),
-	)
+	return [_to_model(item, occ_name_zh, skill_name_zh, importance) for item in raw_results]

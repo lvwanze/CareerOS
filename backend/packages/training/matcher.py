@@ -73,6 +73,52 @@ _CACHE: dict | None = None
 # --------------------------------------------------------------------------
 # 一、数据加载与预处理
 # --------------------------------------------------------------------------
+def _build_index(relations: pd.DataFrame, names: dict, skill_names: dict) -> dict:
+    """从关联表构建打分索引，不读盘。
+
+    抽出来的目的：service 层已经把三张表组装成 occupation_requirements 了，
+    再让算法自己读一遍 CSV 就重复了。有了这个入口，两条路径共用同一套
+    权重计算和切片逻辑，不会出现「离线评估一套、在线服务另一套」。
+
+    Args:
+        relations: 至少含 occupation_id / skill_id / importance / required_level
+        names: occupation_id -> 职业名
+        skill_names: skill_id -> 技能名
+    """
+    relations = relations.copy()
+    relations["importance"] = relations["importance"].astype(float)
+    relations["required_level"] = relations["required_level"].astype(int)
+    relations["skill_name"] = relations["skill_id"].map(skill_names)
+
+    # ---- 权重 w = importance_norm × idf ----
+    # importance 归一化到 0~1：原始 O*NET IM 是 1~5，按 (IM-1)/4 压缩
+    relations["importance_norm"] = (relations["importance"] - 1.0) / 4.0
+
+    # IDF 用平滑写法 log((1+N)/(1+df))+1。
+    # 若直接用 log(N/(1+df))，覆盖全部职业的通用技能会得到负值（约 -0.035），
+    # 意味着"掌握这项技能反而扣分"，逻辑上不成立。
+    n_occupation = relations["occupation_id"].nunique()
+    skill_occurrence = relations.groupby("skill_id")["occupation_id"].nunique()
+    idf = np.log((1 + n_occupation) / (1 + relations["skill_id"].map(skill_occurrence))) + 1.0
+
+    relations["weight"] = relations["importance_norm"] * idf
+
+    # 按重要度降序排一次，保证 reasons 优先取重要的技能
+    relations = relations.sort_values(
+        ["occupation_id", "weight"], ascending=[True, False]
+    ).reset_index(drop=True)
+
+    by_occupation = {oid: g for oid, g in relations.groupby("occupation_id")}
+    skill_sets = {oid: set(g["skill_id"]) for oid, g in by_occupation.items()}
+
+    return {
+        "relations": relations,
+        "by_occupation": by_occupation,
+        "skill_sets": skill_sets,
+        "names": names,
+        "skill_names": skill_names,
+    }
+
 def _load_data() -> dict:
     """读入三张表并完成权重预计算，结果缓存在模块级变量 _CACHE 中。
 
@@ -108,43 +154,18 @@ def _load_data() -> dict:
 
     # 把技能名挂到关联表上，打分循环里直接取用，避免每行再去查字典
     skill_name_map = dict(zip(skills["skill_id"], skills["name"]))
-    relations["skill_name"] = relations["skill_id"].map(skill_name_map)
+    names_map = dict(zip(occupations["occupation_id"], occupations["name"]))
 
-    # ---- 权重 w = importance_norm × idf ----
-    # importance 归一化到 0~1：原始 O*NET IM 是 1~5，按 (IM-1)/4 压缩
-    relations["importance_norm"] = (relations["importance"] - 1.0) / 4.0
+    _CACHE = _build_index(relations, names_map, skill_name_map)
+    # 这两张原始表只有冒烟测试用来看 shape，算法本身不依赖，补在索引上
+    _CACHE["occupations"] = occupations
+    _CACHE["skills"] = skills
 
-    # IDF 用平滑写法 log((1+N)/(1+df))+1。
-    # 若直接用 log(N/(1+df))，覆盖全部职业的通用技能会得到负值（约 -0.035），
-    # 意味着"掌握这项技能反而扣分"，逻辑上不成立。
-    n_occupation = relations["occupation_id"].nunique()
-    skill_occurrence = relations.groupby("skill_id")["occupation_id"].nunique()
-    idf = np.log((1 + n_occupation) / (1 + relations["skill_id"].map(skill_occurrence))) + 1.0
-
-    relations["weight"] = relations["importance_norm"] * idf
-
-    # 按重要度降序排一次，保证 reasons 优先取重要的技能
-    relations = relations.sort_values(
-        ["occupation_id", "weight"], ascending=[True, False]
-    ).reset_index(drop=True)
-
-    by_occupation = {oid: g for oid, g in relations.groupby("occupation_id")}
-    skill_sets = {oid: set(g["skill_id"]) for oid, g in by_occupation.items()}
-
-    _CACHE = {
-        "occupations": occupations,
-        "skills": skills,
-        "relations": relations,
-        "by_occupation": by_occupation,
-        "skill_sets": skill_sets,
-        "names": dict(zip(occupations["occupation_id"], occupations["name"])),
-        "skill_names": dict(zip(skills["skill_id"], skills["name"])),
-    }
     logger.info(
         "知识库加载完成：%d 个职业 / %d 个技能 / %d 条关联",
         len(occupations),
         len(skills),
-        len(relations),
+        len(_CACHE["relations"]),
     )
     return _CACHE
 
@@ -270,12 +291,15 @@ def _build_reasons(gaps: list, limit: int = 4) -> list:
 # --------------------------------------------------------------------------
 # 四、对外入口
 # --------------------------------------------------------------------------
-def _normalize_profile(profile: dict) -> dict:
+def _normalize_profile(profile: dict, index: dict | None = None) -> dict:
     """把画像里的技能列表转成 {skill_id: (self_level, evidence_level)}。
 
     同时做三件事：等级校验、未知技能过滤、重复技能后写覆盖。
+
+    index 由调用方传入时用它的技能白名单，避免为了校验再读一次盘；
+    不传则回落到本地缓存。
     """
-    data = _load_data()
+    data = index if index is not None else _load_data()
     known_skill_ids = set(data["skill_names"])
 
     raw_skills = profile.get("skills") or []
@@ -303,37 +327,20 @@ def _normalize_profile(profile: dict) -> dict:
     return user_skills
 
 
-def recommend(
+def recommend_from_index(
+    index: dict,
     profile: dict,
     top_k: int = TOP_K_DEFAULT,
     diversity_theta: float = DIVERSITY_THETA,
 ) -> list:
-    """根据用户画像推荐 Top-K 职业。
+    """在给定索引上计算推荐，不读盘。
 
-    参数
-    ----
-    profile : dict
-        形如 {"user_id": "...", "skills": [{"skill_id": ..., "self_level": 3,
-        "evidence_level": "project"}, ...]}
-    top_k : int
-        期望返回条数，默认 5。上界由调用方控制，算法内部不写死常量。
-    diversity_theta : float
-        相似职业剔除阈值，Jaccard 超过该值的职业只保留分数高的一个。
-        默认 0.90。设为 >= 1.0 即关闭去重（任何两职业都不会超过 1.0）。
-
-    返回
-    ----
-    list[dict]，每项包含 data_contract 3.5 规定的七个字段，外加 skill_gaps。
-
-    条数约定：返回长度在 [0, top_k] 之间，**不保证等于 top_k**。
-    去重后可选出的职业数量是有限的（theta=0.90 时最多 25 个），
-    若 top_k 超过该上限则实际返回更少。调用方与前端必须按
-    「最多 top_k 张卡片」渲染，不能写死 top_k。
-
-    排序：按 match_score 降序；分数相同时按 occupation_id 升序，保证结果确定。
+    index 由 _build_index 生成；service 层已把三张表组装好时，自己构一个
+    同样的结构传进来即可，不必让算法再读一遍 CSV。
+    返回结构与 recommend 完全一致。
     """
-    data = _load_data()
-    user_skills = _normalize_profile(profile)
+    data = index
+    user_skills = _normalize_profile(profile, index)
 
     if top_k <= 0:
         return []
@@ -388,8 +395,49 @@ def recommend(
     return results
 
 
+def recommend(
+    profile: dict,
+    top_k: int = TOP_K_DEFAULT,
+    diversity_theta: float = DIVERSITY_THETA,
+) -> list:
+    """根据用户画像推荐 Top-K 职业（读本地 data/processed，供离线使用）。
+
+    参数
+    ----
+    profile : dict
+        形如 {"user_id": "...", "skills": [{"skill_id": ..., "self_level": 3,
+        "evidence_level": "project"}, ...]}
+    top_k : int
+        期望返回条数，默认 5。上界由调用方控制，算法内部不写死常量。
+    diversity_theta : float
+        相似职业剔除阈值，Jaccard 超过该值的职业只保留分数高的一个。
+        默认 0.90。设为 >= 1.0 即关闭去重（任何两职业都不会超过 1.0）。
+
+    返回
+    ----
+    list[dict]，每项包含 data_contract 3.5 规定的七个字段，外加 skill_gaps。
+
+    条数约定：返回长度在 [0, top_k] 之间，**不保证等于 top_k**。
+    去重后可选出的职业数量是有限的（theta=0.90 时最多 25 个），
+    若 top_k 超过该上限则实际返回更少。调用方与前端必须按
+    「最多 top_k 张卡片」渲染，不能写死 top_k。
+
+    排序：按 match_score 降序；分数相同时按 occupation_id 升序，保证结果确定。
+
+    在线服务请走 recommend_from_index，把已组装好的数据传进去，
+    避免同一份数据被读两次。
+    """
+    return recommend_from_index(_load_data(), profile, top_k, diversity_theta)
+
+
+# 公开别名：service 层要自己构建索引时用这个，不要直接 import 带下划线的名字
+build_index = _build_index
+
+
 __all__ = [
     "recommend",
+    "recommend_from_index",
+    "build_index",
     "MODEL_VERSION",
     "TOP_K_DEFAULT",
     "DIVERSITY_THETA",
