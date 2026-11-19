@@ -32,20 +32,22 @@ def health_check():
 def get_recommendation():
     # 这里目前是 Mock 数据，之后由赵帝臣的模型接管
     mock_gap = SkillGap(
-        skill_id="SK001",
+        skill_id="SKILL-ONET-2.A.1.a",
+        skill_name="Reading Comprehension",
         gap=2,
+        importance=3.5,
         status="needs_improvement", 
-        current_level=2, 
-        required_level=4
+        current_level=1,
+        required_level=3
     )
     mock_rec = CareerRecommendation(
-        occupation_id="occ_001",
-        occupation_name="数据分析师",
+        occupation_id="OCC-ONET-15-1252.00",
+        occupation_name="Software Developers",
         match_score=0.85,
         skill_gaps=[mock_gap],
-        top_factors=["专业对口", "逻辑分析能力强"],
-        matched_skills=["SK002"],
-        skills_to_improve=["SK001"],
+        recommendation_reasons=["技能匹配度高"],
+        matched_skills=[],
+        skills_to_improve=["SKILL-ONET-2.A.1.a"],
         skills_to_verify=[],
     )
     

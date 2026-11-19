@@ -137,6 +137,21 @@ GET /health
 }
 ```
 
+### 3.5 可用技能
+
+GET /api/v1/skills
+
+用途：
+
+获取当前知识库中至少关联一个职业的技能，前端技能选择和展示仅使用 `used_in_kb=true` 的条目。零引用词表项不返回。
+
+响应数据项：
+
+- skill_id
+- name（英文原始名称）
+- category
+- used_in_kb（当前返回项均为 true）
+
 ## 4. 推荐结果字段
 
 recommendations：

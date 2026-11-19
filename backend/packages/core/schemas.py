@@ -28,6 +28,13 @@ class SkillGap(BaseModel):
     required_level: int = Field(..., ge=0, le=4, description="职业要求水平(0-4)")
 
 
+class SkillOption(BaseModel):
+    skill_id: str
+    name: str
+    category: str
+    used_in_kb: bool
+
+
 # 职业推荐模型（完全对齐 data_contract.md §3.5）
 class CareerRecommendation(BaseModel):
     occupation_id: str = Field(..., description="职业唯一ID")
