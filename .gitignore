@@ -6,6 +6,8 @@ __pycache__/
 .env
 !frontend/.env
 backend/data/raw/
+!backend/data/reference/
+!backend/data/reference/**
 backend/models/*
 !backend/models/.gitkeep
 backend/predictions.jsonl

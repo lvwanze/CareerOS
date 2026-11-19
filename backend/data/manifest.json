@@ -255,5 +255,33 @@
     "occupations": 28,
     "skills": 35,
     "relations": 492
+  },
+  "derived_reference_data": {
+    "status": "maintained_reference",
+    "version": "1.0.0",
+    "not_part_of_processed_contract_tables": true,
+    "source": "English names and stable IDs from the frozen O*NET 31.0 processed tables; Chinese translations manually curated for CareerOS",
+    "generated_by": "scripts/build_name_mappings.py",
+    "generation_method": "Join manually curated Chinese translation dictionaries to processed occupations.csv and skills.csv by English name; fail if any source name lacks a translation",
+    "encoding": "UTF-8 (no BOM)",
+    "delimiter": ",",
+    "line_ending": "LF",
+    "files": {
+      "occupation_name_zh.csv": {
+        "path": "data/reference/occupation_name_zh.csv",
+        "primary_key": "occupation_id",
+        "columns": ["occupation_id", "name_en", "name_zh", "source", "note"],
+        "row_count": 28,
+        "sha256": "498a4dbce97bff7ca103b70f427416cbabf1d6e208070a239cf9b87191d419bb"
+      },
+      "skill_name_zh.csv": {
+        "path": "data/reference/skill_name_zh.csv",
+        "primary_key": "skill_id",
+        "columns": ["skill_id", "name_en", "name_zh", "source", "note"],
+        "row_count": 35,
+        "sha256": "a402e1d2413ee769a826a926f1105268d1f5c149b229b573ae6f6ba3cc0b856f"
+      }
+    },
+    "note": "Reference mappings are served by the backend API; frontend clients do not read these CSV files directly."
   }
 }

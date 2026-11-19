@@ -154,7 +154,7 @@ GET /api/v1/skills
 
 - skill_id
 - name（英文原始名称）
-- name_zh（中文名称，映射缺失时回退为 name）
+- name_zh（中文显示名称，由后端参考映射提供）
 - category
 - used_in_kb（当前返回项均为 true）
 
@@ -164,7 +164,9 @@ recommendations：
 
 - occupation_id
 - occupation_name
+- occupation_name_zh（中文显示名称，由后端参考映射提供）
 - match_score
+- skill_name_zh（技能差距中的中文显示名称，由后端参考映射提供）
 - matched_skills
 - skills_to_improve
 - skills_to_verify
@@ -180,7 +182,7 @@ nodes：
 
 - node_id
 - skill_id
-- name
+- name（优先返回中文显示名）
 - status
 - priority
 - description

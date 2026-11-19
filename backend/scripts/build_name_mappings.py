@@ -1,143 +1,127 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @File       : build_name_mappings.py
-# @Path       : backend/scripts/build_name_mappings.py
-# @Project    : CareerOS
-# @Author     : 2428324206代旭
-# @Date       : 2026-11-19 11:25:00
-# @Version    : v1.0.0
-"""生成并校验中英名称映射表。
+"""Generate derived Chinese name mappings from the frozen processed tables."""
 
-用法：
-    python scripts/build_name_mappings.py           # 按源表顺序重写两份 CSV
-    python scripts/build_name_mappings.py --check   # 只校验，缺一条就非零退出
-
-映射的内置在这里而不是只读 CSV，是为了「clone 下来一条命令就能重建」。
-校验时用 ID 对齐，不用英文名 —— 源表改名时能立刻报出来，不会静默错配。
-"""
-import argparse
 import csv
 from pathlib import Path
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-PROCESSED_DIR = BACKEND_DIR / "data" / "processed"
-MAP_DIR = BACKEND_DIR / "data" / "mappings"
+ROOT = Path(__file__).resolve().parent.parent
+PROCESSED = ROOT / "data" / "processed"
+REFERENCE = ROOT / "data" / "reference"
 
-SKILL_NAME_ZH = {
-    "SKILL-ONET-2.A.1.a": "阅读理解",
-    "SKILL-ONET-2.A.1.b": "积极倾听",
-    "SKILL-ONET-2.A.1.c": "写作",
-    "SKILL-ONET-2.A.1.d": "口语表达",
-    "SKILL-ONET-2.A.1.e": "数学",
-    "SKILL-ONET-2.A.1.f": "科学",
-    "SKILL-ONET-2.A.2.a": "批判性思维",
-    "SKILL-ONET-2.A.2.b": "主动学习",
-    "SKILL-ONET-2.A.2.c": "学习策略",
-    "SKILL-ONET-2.A.2.d": "过程监控",
-    "SKILL-ONET-2.B.1.a": "社会洞察力",
-    "SKILL-ONET-2.B.1.b": "协调能力",
-    "SKILL-ONET-2.B.1.c": "说服能力",
-    "SKILL-ONET-2.B.1.d": "谈判能力",
-    "SKILL-ONET-2.B.1.e": "教学指导",
-    "SKILL-ONET-2.B.1.f": "服务导向",
-    "SKILL-ONET-2.B.2.i": "复杂问题解决",
-    "SKILL-ONET-2.B.3.a": "运营分析",
-    "SKILL-ONET-2.B.3.b": "技术设计",
-    "SKILL-ONET-2.B.3.c": "设备选型",
-    "SKILL-ONET-2.B.3.d": "安装调试",
-    "SKILL-ONET-2.B.3.e": "编程",
-    "SKILL-ONET-2.B.3.g": "运营监控",
-    "SKILL-ONET-2.B.3.h": "运行控制",
-    "SKILL-ONET-2.B.3.j": "设备维护",
-    "SKILL-ONET-2.B.3.k": "故障排查",
-    "SKILL-ONET-2.B.3.l": "维修",
-    "SKILL-ONET-2.B.3.m": "质量控制分析",
-    "SKILL-ONET-2.B.4.e": "判断与决策",
-    "SKILL-ONET-2.B.4.g": "系统分析",
-    "SKILL-ONET-2.B.4.h": "系统评估",
-    "SKILL-ONET-2.B.5.a": "时间管理",
-    "SKILL-ONET-2.B.5.b": "财务资源管理",
-    "SKILL-ONET-2.B.5.c": "物资资源管理",
-    "SKILL-ONET-2.B.5.d": "人力资源调配",
+OCCUPATION_NAMES_ZH = {
+    "Computer Systems Analysts": "计算机系统分析师",
+    "Information Security Analysts": "信息安全分析师",
+    "Computer and Information Research Scientists": "计算机与信息研究科学家",
+    "Computer Network Support Specialists": "计算机网络支持专员",
+    "Computer User Support Specialists": "计算机用户支持专员",
+    "Computer Network Architects": "计算机网络架构师",
+    "Database Administrators": "数据库管理员",
+    "Database Architects": "数据库架构师",
+    "Network and Computer Systems Administrators": "网络与计算机系统管理员",
+    "Computer Programmers": "计算机程序员",
+    "Software Developers": "软件开发人员",
+    "Software Quality Assurance Analysts and Testers": "软件质量保证分析师与测试人员",
+    "Web Developers": "Web开发人员",
+    "Web and Digital Interface Designers": "Web与数字界面设计师",
+    "Penetration Testers": "渗透测试工程师",
+    "Blockchain Engineers": "区块链工程师",
+    "Computer Systems Engineers/Architects": "计算机系统工程师/架构师",
+    "Actuaries": "精算师",
+    "Operations Research Analysts": "运筹分析师",
+    "Statisticians": "统计学家",
+    "Data Scientists": "数据科学家",
+    "Business Intelligence Analysts": "商业智能分析师",
+    "Bioinformatics Technicians": "生物信息技术员",
+    "Project Management Specialists": "项目管理专员",
+    "Management Analysts": "管理分析师",
+    "Market Research Analysts and Marketing Specialists": "市场研究分析师与营销专员",
+    "Budget Analysts": "预算分析师",
+    "Financial Quantitative Analysts": "金融量化分析师",
 }
 
-OCCUPATION_NAME_ZH = {
-    "OCC-ONET-15-1211.00": "计算机系统分析师",
-    "OCC-ONET-15-1212.00": "信息安全分析师",
-    "OCC-ONET-15-1221.00": "计算机与信息研究科学家",
-    "OCC-ONET-15-1231.00": "计算机网络支持专员",
-    "OCC-ONET-15-1232.00": "计算机用户支持专员",
-    "OCC-ONET-15-1241.00": "计算机网络架构师",
-    "OCC-ONET-15-1242.00": "数据库管理员",
-    "OCC-ONET-15-1243.00": "数据库架构师",
-    "OCC-ONET-15-1244.00": "网络与计算机系统管理员",
-    "OCC-ONET-15-1251.00": "计算机程序员",
-    "OCC-ONET-15-1252.00": "软件开发工程师",
-    "OCC-ONET-15-1253.00": "软件质量保证分析师与测试员",
-    "OCC-ONET-15-1254.00": "Web 开发工程师",
-    "OCC-ONET-15-1255.00": "Web 与数字界面设计师",
-    "OCC-ONET-15-1299.04": "渗透测试工程师",
-    "OCC-ONET-15-1299.07": "区块链工程师",
-    "OCC-ONET-15-1299.08": "计算机系统工程师/架构师",
-    "OCC-ONET-15-2011.00": "精算师",
-    "OCC-ONET-15-2031.00": "运筹分析师",
-    "OCC-ONET-15-2041.00": "统计学家",
-    "OCC-ONET-15-2051.00": "数据科学家",
-    "OCC-ONET-15-2051.01": "商业智能分析师",
-    "OCC-ONET-15-2099.01": "生物信息学技术员",
-    "OCC-ONET-13-1082.00": "项目管理专员",
-    "OCC-ONET-13-1111.00": "管理分析师",
-    "OCC-ONET-13-1161.00": "市场研究分析师与营销专员",
-    "OCC-ONET-13-2031.00": "预算分析师",
-    "OCC-ONET-13-2099.01": "金融量化分析师",
+SKILL_NAMES_ZH = {
+    "Reading Comprehension": "阅读理解",
+    "Active Listening": "积极倾听",
+    "Writing": "写作",
+    "Speaking": "口头表达",
+    "Mathematics": "数学",
+    "Science": "科学",
+    "Critical Thinking": "批判性思维",
+    "Active Learning": "主动学习",
+    "Learning Strategies": "学习策略",
+    "Monitoring": "监控",
+    "Social Perceptiveness": "社会洞察力",
+    "Coordination": "协调",
+    "Persuasion": "说服",
+    "Negotiation": "谈判",
+    "Instructing": "指导",
+    "Service Orientation": "服务导向",
+    "Complex Problem Solving": "复杂问题解决",
+    "Operations Analysis": "运营分析",
+    "Technology Design": "技术设计",
+    "Equipment Selection": "设备选型",
+    "Installation": "安装",
+    "Programming": "编程",
+    "Operations Monitoring": "运营监控",
+    "Operation and Control": "操作与控制",
+    "Equipment Maintenance": "设备维护",
+    "Troubleshooting": "故障排查",
+    "Repairing": "维修",
+    "Quality Control Analysis": "质量控制分析",
+    "Judgment and Decision Making": "判断与决策",
+    "Systems Analysis": "系统分析",
+    "Systems Evaluation": "系统评估",
+    "Time Management": "时间管理",
+    "Management of Financial Resources": "财务资源管理",
+    "Management of Material Resources": "物资资源管理",
+    "Management of Personnel Resources": "人力资源管理",
 }
 
-
-def load_source_names(filename: str, key_column: str) -> dict[str, str]:
-    """读源表的 {id: 英文名}，作为重建映射时的 name_en 列。"""
-    with (PROCESSED_DIR / filename).open(encoding="utf-8", newline="") as file:
-        return {row[key_column]: row["name"] for row in csv.DictReader(file)}
+OCCUPATION_FIELDS = ["occupation_id", "name_en", "name_zh", "source", "note"]
+SKILL_FIELDS = ["skill_id", "name_en", "name_zh", "source", "note"]
 
 
-def write_mapping(filename: str, key_column: str, source_names: dict[str, str], mapping: dict[str, str]) -> str:
-    path = MAP_DIR / filename
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow([key_column, "name_en", "name_zh"])
-        for key_value in sorted(source_names):
-            writer.writerow([key_value, source_names[key_value], mapping[key_value]])
-    return f"已写入 {path.name}：{len(source_names)} 条"
+def read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8", newline="") as file:
+        return list(csv.DictReader(file))
 
 
-def check_coverage(label: str, source_names: dict[str, str], mapping: dict[str, str]) -> bool:
-    """按 ID 比对覆盖率，打印缺口，返回是否全对上。"""
-    missing = sorted(set(source_names) - set(mapping))
-    extra = sorted(set(mapping) - set(source_names))
-    matched = len(set(source_names) & set(mapping))
-    print(f"{label}: {matched}/{len(source_names)} matched")
+def write_mapping(filename: str, fields: list[str], rows: list[dict[str, str]]) -> None:
+    with (REFERENCE / filename).open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fields, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def create_rows(
+    source_rows: list[dict[str, str]],
+    id_field: str,
+    translations: dict[str, str],
+) -> list[dict[str, str]]:
+    missing = sorted({row["name"] for row in source_rows} - translations.keys())
     if missing:
-        print(f"  缺少映射: {missing}")
-    if extra:
-        print(f"  多余条目: {extra}")
-    return not missing and not extra
+        raise ValueError(f"Missing Chinese translations: {', '.join(missing)}")
+
+    return [
+        {
+            id_field: row[id_field],
+            "name_en": row["name"],
+            "name_zh": translations[row["name"]],
+            "source": "O*NET 31.0",
+            "note": "人工整理中文译名",
+        }
+        for row in source_rows
+    ]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="生成或校验中英名称映射表")
-    parser.add_argument("--check", action="store_true", help="只校验不写文件")
-    args = parser.parse_args()
-
-    skill_names = load_source_names("skills.csv", "skill_id")
-    occupation_names = load_source_names("occupations.csv", "occupation_id")
-
-    if args.check:
-        skill_ok = check_coverage("skill", skill_names, SKILL_NAME_ZH)
-        occupation_ok = check_coverage("occupation", occupation_names, OCCUPATION_NAME_ZH)
-        raise SystemExit(0 if (skill_ok and occupation_ok) else 1)
-
-    print(write_mapping("skill_name_zh.csv", "skill_id", skill_names, SKILL_NAME_ZH))
-    print(write_mapping("occupation_name_zh.csv", "occupation_id", occupation_names, OCCUPATION_NAME_ZH))
+    REFERENCE.mkdir(parents=True, exist_ok=True)
+    occupations = create_rows(
+        read_csv(PROCESSED / "occupations.csv"), "occupation_id", OCCUPATION_NAMES_ZH
+    )
+    skills = create_rows(read_csv(PROCESSED / "skills.csv"), "skill_id", SKILL_NAMES_ZH)
+    write_mapping("occupation_name_zh.csv", OCCUPATION_FIELDS, occupations)
+    write_mapping("skill_name_zh.csv", SKILL_FIELDS, skills)
+    print(f"生成完成：occupation_name_zh={len(occupations)}, skill_name_zh={len(skills)}")
 
 
 if __name__ == "__main__":

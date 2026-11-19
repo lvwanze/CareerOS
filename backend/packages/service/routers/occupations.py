@@ -4,29 +4,68 @@
 # @Path       : backend/packages/service/routers/occupations.py
 # @Project    : CareerOS
 # @Author     : 2428324206代旭
-# @Date       : 2026-11-19 11:22:00
-# @Version    : v1.0.0
+# @Date       : 2026-11-19 15:50:00
+# @Version    : v1.1.0
 """职业字典接口：列表 + 详情，对齐 api_spec §3.2 / §3.3。
 
-两个取舍：
-1. 列表只给 id/名称/类别/技能数，不带 description 和 skills —— 28 条职业的
-   描述平均 300 字符，带上会把响应体撑到 10KB 以上，列表页也用不到；
-2. 404 走 JSONResponse 而不是 HTTPException —— 后者会被 FastAPI 渲染成
-   {"detail": ...}，与统一信封的四键结构对不上，前端判不出来。
+中文名直接读组长那份 `data/reference/*_zh.csv`（已随 main 入库），本文件不再
+维护第二份映射表 —— 两份并存会出现同一技能两个译名。
+
+三个取舍：
+1. 列表只给 id/名称/类别/技能数，不带 description 和 skills（28 条描述平均 300 字符）；
+2. 404 走 JSONResponse 而不是 HTTPException，后者会被渲染成 {"detail": ...}，与信封不符；
+3. 映射文件缺失时降级成英文名，不让服务起不来。
 """
 import csv
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from packages.core.schemas import ApiResponse
-from packages.service.name_mapping import occupation_zh, skill_zh
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["occupations"])
 
 # routers/occupations.py -> parents[0]=routers [1]=service [2]=packages [3]=backend
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+REFERENCE_DIR = DATA_DIR / "reference"
+
+# Excel 另存 CSV 的常见残留值，统一当作「没有中文名」
+_EMPTY_VALUES = {"", "nan", "none", "null", "na", "n/a", "-"}
+
+
+def _clean(value: object) -> str:
+    if value is None:
+        return ""
+    text = str(value).replace("\ufeff", "").strip()
+    if text.lower() in _EMPTY_VALUES:
+        return ""
+    return text
+
+
+def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
+    """读参考映射，返回 {id: 中文名}。文件缺失返回空表，回退英文名。"""
+    path = REFERENCE_DIR / filename
+    if not path.is_file():
+        logger.warning("中文名映射缺失，回退英文名：%s", path)
+        return {}
+
+    table: dict[str, str] = {}
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        for row in csv.DictReader(file):
+            key_value = _clean(row.get(id_field))
+            name_zh = _clean(row.get("name_zh"))
+            if key_value and name_zh:
+                table[key_value] = name_zh
+    return table
+
+
+def _name_zh(table: dict[str, str], key_value: str, fallback: str) -> str:
+    """回退链：映射命中 -> 英文名 -> id，保证永不为空。"""
+    return table.get(key_value) or _clean(fallback) or key_value
 
 
 def _load_skill_rows() -> dict[str, dict]:
@@ -37,6 +76,8 @@ def _load_skill_rows() -> dict[str, dict]:
 def _load_occupations() -> dict[str, dict]:
     """把三张表拼成 {occupation_id: 职业字典}，技能按 importance 降序。"""
     skill_rows = _load_skill_rows()
+    skill_names_zh = _load_name_mapping("skill_name_zh.csv", "skill_id")
+    occupation_names_zh = _load_name_mapping("occupation_name_zh.csv", "occupation_id")
 
     occupations: dict[str, dict] = {}
     with (DATA_DIR / "processed" / "occupations.csv").open(encoding="utf-8", newline="") as file:
@@ -44,7 +85,7 @@ def _load_occupations() -> dict[str, dict]:
             occupations[row["occupation_id"]] = {
                 "occupation_id": row["occupation_id"],
                 "name": row["name"],
-                "name_zh": occupation_zh(row["occupation_id"], row["name"]),
+                "name_zh": _name_zh(occupation_names_zh, row["occupation_id"], row["name"]),
                 "description": row["description"],
                 "category": row["category"],
                 "skill_count": 0,
@@ -60,7 +101,7 @@ def _load_occupations() -> dict[str, dict]:
             occupation["skills"].append({
                 "skill_id": row["skill_id"],
                 "name": skill.get("name", row["skill_id"]),
-                "name_zh": skill_zh(row["skill_id"], skill.get("name", "")),
+                "name_zh": _name_zh(skill_names_zh, row["skill_id"], skill.get("name", "")),
                 "category": skill.get("category", ""),
                 "importance": float(row["importance"]),
                 "required_level": int(row["required_level"]),

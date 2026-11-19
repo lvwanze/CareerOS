@@ -19,13 +19,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from packages.service import name_mapping
 from packages.service.main import app
+from packages.service.routers import occupations, recommend
 
 client = TestClient(app)
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-MAP_DIR = BACKEND_DIR / "data" / "mappings"
+REFERENCE_DIR = BACKEND_DIR / "data" / "reference"
 
 
 def has_cjk(text: str) -> bool:
@@ -34,7 +34,7 @@ def has_cjk(text: str) -> bool:
 
 
 def read_mapping(filename: str, key_column: str) -> dict[str, str]:
-    with (MAP_DIR / filename).open(encoding="utf-8-sig", newline="") as file:
+    with (REFERENCE_DIR / filename).open(encoding="utf-8-sig", newline="") as file:
         return {row[key_column]: row["name_zh"] for row in csv.DictReader(file)}
 
 
@@ -59,19 +59,25 @@ def test_skills_name_zh_matches_mapping_file():
 
 
 def test_skills_fall_back_to_english_when_mapping_missing(monkeypatch, tmp_path):
-    """映射文件不在时仍返 200，中文名回退英文名。"""
-    monkeypatch.setattr(name_mapping, "MAP_DIR", tmp_path)
-    name_mapping.reset_cache()
-    try:
-        response = client.get("/api/v1/skills")
+    """映射文件不在时仍返 200，中文名回退英文名。
 
-        assert response.status_code == 200
-        skills = response.json()["data"]
-        assert len(skills) == 33
-        assert all(skill["name_zh"] == skill["name"] for skill in skills)
-    finally:
-        monkeypatch.undo()
-        name_mapping.reset_cache()
+    skills 的中文名由 recommend 模块提供，occupations 用自己的加载器，
+    两条路径都要测，所以两边一起置空。
+    """
+    monkeypatch.setattr(recommend, "_load_name_mapping", lambda *args, **kwargs: {})
+    monkeypatch.setattr(occupations, "REFERENCE_DIR", tmp_path)
+
+    skill_response = client.get("/api/v1/skills")
+    assert skill_response.status_code == 200
+    skills = skill_response.json()["data"]
+    assert len(skills) == 33
+    assert all(skill["name_zh"] == skill["name"] for skill in skills)
+
+    occupation_response = client.get("/api/v1/occupations")
+    assert occupation_response.status_code == 200
+    items = occupation_response.json()["data"]["items"]
+    assert len(items) == 28
+    assert all(item["name_zh"] == item["name"] for item in items)
 
 
 def test_occupations_list_returns_28_with_name_zh():
@@ -92,7 +98,7 @@ def test_occupation_detail_ok_and_404_enveloped():
     assert ok_response.status_code == 200
     detail = ok_response.json()["data"]
     assert detail["name"] == "Software Developers"
-    assert detail["name_zh"] == "软件开发工程师"
+    assert detail["name_zh"] == "软件开发人员"
     importances = [skill["importance"] for skill in detail["skills"]]
     assert importances == sorted(importances, reverse=True)
     assert all(has_cjk(skill["name_zh"]) for skill in detail["skills"])
