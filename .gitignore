@@ -6,7 +6,8 @@ __pycache__/
 .env
 !frontend/.env
 backend/data/raw/
-backend/data/processed/
+# backend/data/processed/ 不忽略：成品三表（28/35/492，共约 38KB）是冻结数据包，
+# 随仓库分发，clone 下来即可直接跑测试。原始 O*NET 数据在 data/raw/ 才忽略。
 !backend/data/reference/
 !backend/data/reference/**
 _main_check/

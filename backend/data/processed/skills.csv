@@ -1,0 +1,36 @@
+skill_id,name,category,description,source,source_id
+SKILL-ONET-2.A.1.a,Reading Comprehension,essential,,ONET,2.A.1.a
+SKILL-ONET-2.A.1.b,Active Listening,essential,,ONET,2.A.1.b
+SKILL-ONET-2.A.1.c,Writing,essential,,ONET,2.A.1.c
+SKILL-ONET-2.A.1.d,Speaking,essential,,ONET,2.A.1.d
+SKILL-ONET-2.A.1.e,Mathematics,essential,,ONET,2.A.1.e
+SKILL-ONET-2.A.1.f,Science,essential,,ONET,2.A.1.f
+SKILL-ONET-2.A.2.a,Critical Thinking,essential,,ONET,2.A.2.a
+SKILL-ONET-2.A.2.b,Active Learning,essential,,ONET,2.A.2.b
+SKILL-ONET-2.A.2.c,Learning Strategies,essential,,ONET,2.A.2.c
+SKILL-ONET-2.A.2.d,Monitoring,essential,,ONET,2.A.2.d
+SKILL-ONET-2.B.1.a,Social Perceptiveness,transferable,,ONET,2.B.1.a
+SKILL-ONET-2.B.1.b,Coordination,transferable,,ONET,2.B.1.b
+SKILL-ONET-2.B.1.c,Persuasion,transferable,,ONET,2.B.1.c
+SKILL-ONET-2.B.1.d,Negotiation,transferable,,ONET,2.B.1.d
+SKILL-ONET-2.B.1.e,Instructing,transferable,,ONET,2.B.1.e
+SKILL-ONET-2.B.1.f,Service Orientation,transferable,,ONET,2.B.1.f
+SKILL-ONET-2.B.2.i,Complex Problem Solving,transferable,,ONET,2.B.2.i
+SKILL-ONET-2.B.3.a,Operations Analysis,transferable,,ONET,2.B.3.a
+SKILL-ONET-2.B.3.b,Technology Design,transferable,,ONET,2.B.3.b
+SKILL-ONET-2.B.3.c,Equipment Selection,transferable,,ONET,2.B.3.c
+SKILL-ONET-2.B.3.d,Installation,transferable,,ONET,2.B.3.d
+SKILL-ONET-2.B.3.e,Programming,transferable,,ONET,2.B.3.e
+SKILL-ONET-2.B.3.g,Operations Monitoring,transferable,,ONET,2.B.3.g
+SKILL-ONET-2.B.3.h,Operation and Control,transferable,,ONET,2.B.3.h
+SKILL-ONET-2.B.3.j,Equipment Maintenance,transferable,,ONET,2.B.3.j
+SKILL-ONET-2.B.3.k,Troubleshooting,transferable,,ONET,2.B.3.k
+SKILL-ONET-2.B.3.l,Repairing,transferable,,ONET,2.B.3.l
+SKILL-ONET-2.B.3.m,Quality Control Analysis,transferable,,ONET,2.B.3.m
+SKILL-ONET-2.B.4.e,Judgment and Decision Making,transferable,,ONET,2.B.4.e
+SKILL-ONET-2.B.4.g,Systems Analysis,transferable,,ONET,2.B.4.g
+SKILL-ONET-2.B.4.h,Systems Evaluation,transferable,,ONET,2.B.4.h
+SKILL-ONET-2.B.5.a,Time Management,transferable,,ONET,2.B.5.a
+SKILL-ONET-2.B.5.b,Management of Financial Resources,transferable,,ONET,2.B.5.b
+SKILL-ONET-2.B.5.c,Management of Material Resources,transferable,,ONET,2.B.5.c
+SKILL-ONET-2.B.5.d,Management of Personnel Resources,transferable,,ONET,2.B.5.d
