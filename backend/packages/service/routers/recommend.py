@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from packages.core.schemas import (
 	ApiResponse,
 	DevelopmentNode,
@@ -79,9 +80,27 @@ def _load_occupation_requirements() -> list[dict]:
 async def list_skills():
 	return ApiResponse(code=200, message="success", data=_load_used_skills())
 
+def _reject_empty_skills(profile: dict) -> JSONResponse | None:
+	"""skills 少于 1 条直接拒绝。冻结单要求至少 1 项，越界值仍走静默过滤。"""
+	skills = profile.get("skills")
+	if isinstance(skills, list) and len(skills) >= 1:
+		return None
+	return JSONResponse(
+		status_code=422,
+		content=ApiResponse(
+			code=422,
+			message="请求参数不符合要求",
+			data={"errors": [{"field": "profile.skills", "message": "至少填报 1 项技能"}]},
+		).model_dump(),
+	)
+
+
 @router.post("/recommendations", response_model=RecommendationsResponse)
 async def recommend(request: RecommendationRequest):
 	profile = request.profile
+	rejected = _reject_empty_skills(profile)
+	if rejected is not None:
+		return rejected
 	user_skills = {
 		item["skill_id"]: item["self_level"]
 		for item in profile.get("skills", [])

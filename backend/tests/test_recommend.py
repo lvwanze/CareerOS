@@ -7,14 +7,18 @@ from packages.training.inference import generate_recommendations
 client = TestClient(app)
 
 
-def test_recommendation_endpoint_returns_empty_list_without_skills():
+def test_recommendation_endpoint_rejects_empty_skills_with_422():
     response = client.post("/api/v1/recommendations", json={"profile": {"skills": []}})
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     body = response.json()
-    assert body["code"] == 200
-    assert body["data"]["recommendations"] == []
-    assert body["data"]["development_paths"] == []
+    assert body["code"] == 422
+    assert body["data"]["errors"][0]["field"] == "profile.skills"
+
+
+def test_inference_returns_empty_for_empty_profile():
+    """「空进空出」的原语义下移到算法层，回归价值不丢。"""
+    assert generate_recommendations({}, []) == []
 
 
 def test_legacy_mock_recommendation_route_is_removed():

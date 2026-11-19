@@ -1,0 +1,17 @@
+{
+  "name": "CareerOS",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "CareerOS API",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "python -m pip install -r backend/requirements.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.debugpy"]
+    }
+  }
+}
