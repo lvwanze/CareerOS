@@ -31,6 +31,7 @@ class SkillGap(BaseModel):
 class SkillOption(BaseModel):
     skill_id: str
     name: str
+    name_zh: str = Field(default="", description="中文名；映射缺失时与 name 相同（英文回退）")
     category: str
     used_in_kb: bool
 
