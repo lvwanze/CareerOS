@@ -4,6 +4,7 @@ frontend/build/
 __pycache__/
 *.pyc
 .env
+!frontend/.env
 backend/data/raw/
 backend/models/*
 !backend/models/.gitkeep

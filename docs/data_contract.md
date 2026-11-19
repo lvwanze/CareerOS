@@ -144,9 +144,11 @@ match_score 的范围、计算方法及解释由算法负责人确认。
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | skill_id | str | 是 | 技能 ID |
+| skill_name | str | 否 | 技能名称；第一阶段使用英文原始名称 |
 | current_level | int | 是 | 用户当前能力等级 |
 | required_level | int | 是 | 职业要求等级 |
 | gap | int | 是 | 能力差距 |
+| importance | float | 否 | O*NET 原始 IM 重要程度，非归一化百分比 |
 | status | str | 是 | 能力状态 |
 
 status 第一阶段建议采用：
