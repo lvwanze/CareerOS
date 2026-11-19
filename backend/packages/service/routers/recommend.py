@@ -3,13 +3,15 @@ from pathlib import Path
 
 from fastapi import APIRouter
 from packages.core.schemas import (
-ApiResponse,
-RecommendResponse,
-RecommendResponseData,
-CareerRecommendation,
-SkillGap,
-SkillOption,
+	ApiResponse,
+	DevelopmentNode,
+	DevelopmentPath,
+	RecommendationRequest,
+	RecommendationsResponse,
+	RecommendationsResponseData,
+	SkillOption,
 )
+from packages.training.inference import generate_recommendations
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
@@ -32,42 +34,72 @@ def _load_used_skills() -> list[SkillOption]:
 		]
 
 
+def _load_occupation_requirements() -> list[dict]:
+	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
+		skill_names = {row["skill_id"]: row["name"] for row in csv.DictReader(file)}
+
+	occupations = {}
+	with (DATA_DIR / "processed" / "occupations.csv").open(encoding="utf-8", newline="") as file:
+		for row in csv.DictReader(file):
+			occupations[row["occupation_id"]] = {
+				"occupation_id": row["occupation_id"],
+				"occupation_name": row["name"],
+				"skills": [],
+			}
+
+	with (DATA_DIR / "processed" / "occupation_skills.csv").open(encoding="utf-8", newline="") as file:
+		for row in csv.DictReader(file):
+			occupation = occupations.get(row["occupation_id"])
+			if occupation is not None:
+				occupation["skills"].append({
+					"skill_id": row["skill_id"],
+					"skill_name": skill_names.get(row["skill_id"], row["skill_id"]),
+					"importance": float(row["importance"]),
+					"required_level": int(row["required_level"]),
+				})
+
+	return list(occupations.values())
+
+
 @router.get("/skills", response_model=ApiResponse)
 async def list_skills():
 	return ApiResponse(code=200, message="success", data=_load_used_skills())
 
-@router.post("/recommend", response_model=ApiResponse)
-async def recommend(user_profile: dict):
-	# TODO: 调用算法模块获取推荐结果
-	# 示例数据（临时mock）
-	mock_data = RecommendResponseData(
-		user_id="test_user",
-		model_version="v1.0",
-		recommendations=[
-			CareerRecommendation(
-				occupation_id="OCC-ONET-15-1252.00",
-				occupation_name="Software Developers",
-				match_score=0.751,
-				skill_gaps=[
-					SkillGap(
-						skill_id="SKILL-ONET-2.A.1.a",
-						skill_name="Reading Comprehension",
-						gap=1,
-						importance=3.5,
-						status="needs_improvement",
-						current_level=1,
-						required_level=2,
-					)
-				],
-				recommendation_reasons=["技能匹配度高"],
-				matched_skills=[],
-				skills_to_improve=["SKILL-ONET-2.A.1.a"],
-				skills_to_verify=[],
-			)
-		],
-	)
-	return ApiResponse(
-		code=200,
-		message="success",
-		data=mock_data,
+@router.post("/recommendations", response_model=RecommendationsResponse)
+async def recommend(request: RecommendationRequest):
+	profile = request.profile
+	user_skills = {
+		item["skill_id"]: item["self_level"]
+		for item in profile.get("skills", [])
+		if isinstance(item, dict)
+		and isinstance(item.get("skill_id"), str)
+		and isinstance(item.get("self_level"), int)
+		and 0 <= item["self_level"] <= 4
+	}
+	recommendations = generate_recommendations(user_skills, _load_occupation_requirements())
+	development_paths = []
+	for recommendation in recommendations:
+		gaps = [gap for gap in recommendation.skill_gaps if gap.gap > 0]
+		development_paths.append(DevelopmentPath(
+			path_id=f"PATH-{recommendation.occupation_id}",
+			occupation_id=recommendation.occupation_id,
+			nodes=[
+				DevelopmentNode(
+					node_id=f"{recommendation.occupation_id}-{gap.skill_id}",
+					skill_id=gap.skill_id,
+					name=gap.skill_name or gap.skill_id,
+					status="not_started",
+					priority=index,
+					description=f"将技能水平从 {gap.current_level} 提升至 {gap.required_level}",
+				)
+				for index, gap in enumerate(gaps, start=1)
+			],
+		))
+	return RecommendationsResponse(
+		data=RecommendationsResponseData(
+			user_id=profile.get("user_id", "anonymous"),
+			model_version="weighted-knowledge-base-v1",
+			recommendations=recommendations,
+			development_paths=development_paths,
+		)
 	)

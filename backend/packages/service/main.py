@@ -2,12 +2,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from packages.core.schemas import (
-    CareerRecommendation,
     CareerTreeResponse,
     CareerTreeResponseData,
-    RecommendResponse,
-    RecommendResponseData,
-    SkillGap,
     TreeNode,
 )
 from packages.service.routers.recommend import router as recommend_router
@@ -27,35 +23,6 @@ app.include_router(recommend_router)
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "CareerOS API is running"}
-
-@app.post("/v1/recommend", response_model=RecommendResponse)
-def get_recommendation():
-    # 这里目前是 Mock 数据，之后由赵帝臣的模型接管
-    mock_gap = SkillGap(
-        skill_id="SKILL-ONET-2.A.1.a",
-        skill_name="Reading Comprehension",
-        gap=2,
-        importance=3.5,
-        status="needs_improvement", 
-        current_level=1,
-        required_level=3
-    )
-    mock_rec = CareerRecommendation(
-        occupation_id="OCC-ONET-15-1252.00",
-        occupation_name="Software Developers",
-        match_score=0.85,
-        skill_gaps=[mock_gap],
-        recommendation_reasons=["技能匹配度高"],
-        matched_skills=[],
-        skills_to_improve=["SKILL-ONET-2.A.1.a"],
-        skills_to_verify=[],
-    )
-    
-    return RecommendResponse(data=RecommendResponseData(
-        user_id="user_123",
-        model_version="v1.0-mock",
-        recommendations=[mock_rec]
-    ))
 
 @app.get("/v1/tree/{occupation_id}", response_model=CareerTreeResponse)
 def get_career_tree(occupation_id: str):

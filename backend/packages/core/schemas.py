@@ -52,8 +52,38 @@ class RecommendResponseData(BaseModel):
     user_id: str = Field(..., description="用户唯一标识")
     model_version: str = Field(..., description="使用的模型版本号")
     recommendations: List[CareerRecommendation] = Field(
-        ..., max_length=5, description="推荐的职业方向列表(固定最多5个)"
+        ..., max_length=5, description="推荐的职业方向列表(最多5个)"
     )
+
+
+class DevelopmentNode(BaseModel):
+    node_id: str
+    skill_id: str
+    name: str
+    status: Literal["not_started", "in_progress", "mastered"]
+    priority: int
+    description: str
+
+
+class DevelopmentPath(BaseModel):
+    path_id: str
+    occupation_id: str
+    nodes: List[DevelopmentNode] = Field(default_factory=list)
+
+
+class RecommendationsResponseData(BaseModel):
+    user_id: str
+    model_version: str
+    recommendations: List[CareerRecommendation] = Field(default_factory=list, max_length=5)
+    development_paths: List[DevelopmentPath] = Field(default_factory=list, max_length=5)
+
+
+class RecommendationsResponse(ApiResponse):
+    data: RecommendationsResponseData
+
+
+class RecommendationRequest(BaseModel):
+    profile: dict = Field(default_factory=dict)
 
 
 # 职业推荐响应模型
