@@ -1,0 +1,36 @@
+skill_id,name_en,name_zh,source,note
+SKILL-ONET-2.A.1.a,Reading Comprehension,阅读理解,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.1.b,Active Listening,积极倾听,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.1.c,Writing,写作,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.1.d,Speaking,口头表达,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.1.e,Mathematics,数学,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.1.f,Science,科学,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.2.a,Critical Thinking,批判性思维,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.2.b,Active Learning,主动学习,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.2.c,Learning Strategies,学习策略,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.A.2.d,Monitoring,监控,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.a,Social Perceptiveness,社会洞察力,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.b,Coordination,协调,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.c,Persuasion,说服,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.d,Negotiation,谈判,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.e,Instructing,指导,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.1.f,Service Orientation,服务导向,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.2.i,Complex Problem Solving,复杂问题解决,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.a,Operations Analysis,运营分析,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.b,Technology Design,技术设计,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.c,Equipment Selection,设备选型,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.d,Installation,安装,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.e,Programming,编程,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.g,Operations Monitoring,运营监控,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.h,Operation and Control,操作与控制,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.j,Equipment Maintenance,设备维护,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.k,Troubleshooting,故障排查,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.l,Repairing,维修,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.3.m,Quality Control Analysis,质量控制分析,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.4.e,Judgment and Decision Making,判断与决策,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.4.g,Systems Analysis,系统分析,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.4.h,Systems Evaluation,系统评估,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.5.a,Time Management,时间管理,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.5.b,Management of Financial Resources,财务资源管理,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.5.c,Management of Material Resources,物资资源管理,O*NET 31.0,人工整理中文译名
+SKILL-ONET-2.B.5.d,Management of Personnel Resources,人力资源管理,O*NET 31.0,人工整理中文译名

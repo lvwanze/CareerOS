@@ -18,6 +18,7 @@ class ApiResponse(BaseModel):
 class SkillGap(BaseModel):
     skill_id: str = Field(..., description="技能唯一ID")
     skill_name: Optional[str] = Field(None, description="技能名称（可为英文）")
+    skill_name_zh: Optional[str] = Field(None, description="技能中文名称")
     gap: int = Field(..., description="技能差距值")
     importance: Optional[float] = Field(None, description="技能重要性分数（原始O*NET IM值）")
     status: Literal["mastered", "needs_improvement", "needs_verification"] = Field(
@@ -31,6 +32,7 @@ class SkillGap(BaseModel):
 class SkillOption(BaseModel):
     skill_id: str
     name: str
+    name_zh: str
     category: str
     used_in_kb: bool
 
@@ -39,6 +41,7 @@ class SkillOption(BaseModel):
 class CareerRecommendation(BaseModel):
     occupation_id: str = Field(..., description="职业唯一ID")
     occupation_name: str = Field(..., description="职业名称")
+    occupation_name_zh: Optional[str] = Field(None, description="职业中文名称")
     match_score: float = Field(..., ge=0, le=1, description="匹配度得分 (0-1之间)")
     skill_gaps: List[SkillGap] = Field(default_factory=list, description="技能差距明细")
     recommendation_reasons: List[str] = Field(..., description="主要推荐依据")

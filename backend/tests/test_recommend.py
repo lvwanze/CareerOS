@@ -45,7 +45,10 @@ def test_recommendations_use_knowledge_base_and_return_top_five():
         recommendation["occupation_id"] for recommendation in recommendations
     }
     for recommendation in recommendations:
+        assert recommendation["occupation_name_zh"]
+        assert all(gap["skill_name_zh"] for gap in recommendation["skill_gaps"])
         path = paths_by_occupation[recommendation["occupation_id"]]
+        assert all(node["name"] for node in path["nodes"])
         assert [node["skill_id"] for node in path["nodes"]] == [
             gap["skill_id"] for gap in recommendation["skill_gaps"] if gap["gap"] > 0
         ]
@@ -63,6 +66,15 @@ def test_skills_endpoint_excludes_unused_skills():
     assert all(skill["used_in_kb"] for skill in skills)
     assert "SKILL-ONET-2.B.3.c" not in skill_ids
     assert "SKILL-ONET-2.B.3.d" not in skill_ids
+
+
+def test_skills_endpoint_returns_chinese_names_from_reference_mapping():
+    response = client.get("/api/v1/skills")
+
+    assert response.status_code == 200
+    skills_by_id = {skill["skill_id"]: skill for skill in response.json()["data"]}
+    assert skills_by_id["SKILL-ONET-2.B.3.e"]["name"] == "Programming"
+    assert skills_by_id["SKILL-ONET-2.B.3.e"]["name_zh"] == "编程"
 
 
 def test_training_inference_caps_results_and_sorts_skill_gaps():
