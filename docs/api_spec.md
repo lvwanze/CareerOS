@@ -99,10 +99,13 @@ GET /api/v1/occupations
 
 - occupation_id
 - name
-- description
+- name_zh（中文名称，映射缺失时回退为 name）
 - category
+- skill_count
 
-是否第一阶段实现：待后端负责人确认。
+列表响应形状为 `{"items": [...], "total": 28}`。为控制响应体积，列表项不含 description 与 skills，详细信息走 3.3。
+
+是否第一阶段实现：已实现。
 
 ### 3.3 职业详情
 
@@ -114,12 +117,14 @@ GET /api/v1/occupations/{occupation_id}
 
 响应数据：
 
-- 职业基本信息。
-- 关联技能。
-- 技能重要程度。
-- 技能要求等级。
+- 职业基本信息（occupation_id / name / name_zh / description / category / skill_count）。
+- 关联技能（skill_id / name / name_zh / category）。
+- 技能重要程度（importance，O\*NET 原始 IM 值，1~5 不归一化）。
+- 技能要求等级（required_level，0~4）。
+- 关联技能按 importance 降序排列。
+- 职业不存在时返回 HTTP 404，响应体仍为统一信封（code=404、data=null），不返回 `{"detail": ...}`。
 
-是否第一阶段实现：待确认。
+是否第一阶段实现：已实现。
 
 ### 3.4 健康检查
 

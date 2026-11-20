@@ -1,7 +1,7 @@
 # 算法侧验收口径说明（matcher-v1）
 
 > 供测试侧复测与报告引用。本文所有数值均为本地实测，非估算。
-> 对应分支 `feature/model`，提交 `8de7ce2`。
+> 对应分支 `feature/model`，以 `main` 合并后的最新提交为准。
 
 ---
 
@@ -198,7 +198,8 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 
 ### 4.4 返回条数
 
-- 条数区间：**[0, top_k]**，**不保证等于 `top_k`**
+- 算法层区间：**[0, top_k]**，**不保证等于 `top_k`**
+- HTTP 入口：`skills` 少于 1 项直接 422，因此正常请求最少返回 **1 条**
 - 原因：相似职业去重（Jaccard > 0.90 剔除）
 - 实测：`top_k=28` 时，画像 A 返回 25 条、画像 B 返回 26 条
 - 前端必须按「最多 top_k 张卡片」渲染，不能写死 5
@@ -218,27 +219,43 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 
 | 场景 | 请求 | 实际行为 |
 | --- | --- | --- |
-| 空画像 | `skills: []` | HTTP 200，`recommendations` 为 **0 条** |
+| 空画像 | `skills: []` | **HTTP 422**，`field = profile.skills`，提示「至少填报 1 项技能」（冻结单要求 ≥1 项） |
 | 技能不存在 | `skill_id: "SKILL-FAKE-999"` | HTTP 200，该技能被忽略，正常返回 5 条 |
 | 未知证据值 | `evidence_level: "projct"` | HTTP 200，按 `none` 处理 |
 | `self_level` 缺失 | 不传该字段 | HTTP 200，按 **0 级**处理（与显式传 0 结果逐字段一致） |
-| `self_level = 5` / `-1` / `99` | 越界值 | **HTTP 422**，`detail[0].loc` 精确指向 `body.profile.skills[0].self_level` |
+| `self_level = 5` / `-1` / `99` | 越界值 | **HTTP 422**，`field = profile.skills.0.self_level` |
+| 缺少 `skill_id` | 只传 `self_level` | **HTTP 422**，`field = profile.skills.0.skill_id`，提示「为必填项」 |
 | `top_k = 0` | 算法层直接调用 | 返回空列表 |
 | 超过去重上限的 `top_k` | `top_k=100` | 返回去重后实际可选条数（25~28），不报错 |
 
-### 入参越界已改为 422（本轮修复）
+### 5.1 越界与空画像统一返回 422
 
 早期版本在路由层用 `0 <= self_level <= 4` 做过滤，越界条目被**静默丢弃**且仍返回 200，调用方无从察觉该技能没有参与计算，极端情况下会拿到 0 条推荐却看不到任何错误。
 
-现已将请求体收敛为 pydantic 模型（`packages/core/schemas.py` 的 `SkillInput` / `ProfileInput`），越界在进入业务逻辑前即被拦下：
+现已将请求体收敛为 pydantic 模型（`packages/core/schemas.py` 的 `SkillInput` / `ProfileInput`），越界在进入业务逻辑前即被拦下。
+
+### 5.2 422 响应格式（统一一种，复测按此断言）
+
+三种 422（越界 / 空画像 / 缺必填字段）返回**同一结构**，不要按 FastAPI 原生 `{"detail": [...]}` 断言：
 
 ```json
 HTTP 422
-{"detail":[{"type":"less_than_equal","loc":["body","profile","skills",0,"self_level"],
-            "msg":"Input should be less than or equal to 4","input":5,"ctx":{"le":4}}]}
+{
+  "code": 422,
+  "message": "请求参数不符合要求",
+  "data": {"errors": [{"field": "profile.skills.0.self_level", "message": "不能大于 4"}]},
+  "request_id": "..."
+}
 ```
 
-约定不变的部分：字段缺失仍按 0 级处理；未知 `skill_id` 仍告警并忽略；`evidence_level` 非法值仍归一为 `none`。**复测时请按 422 断言**，不再按「200 且该项不生效」。
+| 字段 | 说明 |
+| --- | --- |
+| `code` | 固定 422 |
+| `message` | 固定「请求参数不符合要求」 |
+| `data.errors[].field` | 出错的字段路径，点分格式；数组下标用数字（`skills.0`） |
+| `data.errors[].message` | 中文原因：`不能大于 4` / `不能小于 0` / `为必填项` / `至少填报 1 项技能` |
+
+约定不变的部分：字段缺失仍按 0 级处理；未知 `skill_id` 仍告警并忽略；`evidence_level` 非法值仍归一为 `none`（HTTP 200）。
 
 ---
 
@@ -252,7 +269,7 @@ HTTP 422
 | 三档判定有效 | 显式传 `evidence_level: "none"` 时产出 `needs_verification`（实测 `skills_to_verify` 非空） |
 | 相似职业去重有效 | `top_k=28` 仅返回 25/26 条；被剔职业与保留职业 Jaccard > 0.90 |
 | 结果确定性 | 同一输入多次调用，排序与分数完全一致 |
-| 边界行为 | 上表 6 个场景逐项实测 |
+| 边界行为 | 上表 8 个场景逐项实测，三种 422 结构一致 |
 | 中文名不影响分数 | 全部 `name_zh` 置空 / 替换为乱码各跑一次，28 个职业排序与分数 6 位小数一致 |
 
 **不能声称**：

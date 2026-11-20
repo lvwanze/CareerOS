@@ -7,14 +7,18 @@ from packages.training.inference import generate_recommendations
 client = TestClient(app)
 
 
-def test_recommendation_endpoint_returns_empty_list_without_skills():
+def test_recommendation_endpoint_rejects_empty_skills_with_422():
     response = client.post("/api/v1/recommendations", json={"profile": {"skills": []}})
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     body = response.json()
-    assert body["code"] == 200
-    assert body["data"]["recommendations"] == []
-    assert body["data"]["development_paths"] == []
+    assert body["code"] == 422
+    assert body["data"]["errors"][0]["field"] == "profile.skills"
+
+
+def test_inference_returns_empty_for_empty_profile():
+    """「空进空出」的原语义下移到算法层，回归价值不丢。"""
+    assert generate_recommendations({}, []) == []
 
 
 def test_legacy_mock_recommendation_route_is_removed():
@@ -140,6 +144,12 @@ def test_recommendation_rejects_self_level_above_max():
     response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 5})
 
     assert response.status_code == 422
+    body = response.json()
+    # 与 _reject_empty_skills 的 422 保持同一格式，前端只需一套解析
+    assert body["code"] == 422
+    error = body["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.self_level"
+    assert "不能大于 4" in error["message"]
 
 
 def test_recommendation_rejects_negative_self_level():

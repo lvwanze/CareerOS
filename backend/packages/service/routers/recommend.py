@@ -2,10 +2,12 @@ import csv
 from pathlib import Path
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from packages.core.schemas import (
 	ApiResponse,
 	DevelopmentNode,
 	DevelopmentPath,
+	ProfileInput,
 	RecommendationRequest,
 	RecommendationsResponse,
 	RecommendationsResponseData,
@@ -79,9 +81,31 @@ def _load_occupation_requirements() -> list[dict]:
 async def list_skills():
 	return ApiResponse(code=200, message="success", data=_load_used_skills())
 
+def _reject_empty_skills(profile: ProfileInput) -> JSONResponse | None:
+	"""skills 少于 1 条直接拒绝。冻结单要求至少 1 项。
+
+	本函数只管条数；单条技能的 self_level 越界由 ProfileInput → SkillInput
+	的 ge=0/le=4 在进入路由前拦成 422，不再走过滤式静默丢弃。
+	"""
+	skills = profile.skills
+	if isinstance(skills, list) and len(skills) >= 1:
+		return None
+	return JSONResponse(
+		status_code=422,
+		content=ApiResponse(
+			code=422,
+			message="请求参数不符合要求",
+			data={"errors": [{"field": "profile.skills", "message": "至少填报 1 项技能"}]},
+		).model_dump(),
+	)
+
+
 @router.post("/recommendations", response_model=RecommendationsResponse)
 async def recommend(request: RecommendationRequest):
 	profile = request.profile
+	rejected = _reject_empty_skills(profile)
+	if rejected is not None:
+		return rejected
 	# 等级范围由 SkillInput 保证（0～4），越界请求在进入本函数前已被 422 拦下，
 	# 因此这里不再做过滤，避免"越界条目被静默丢弃、接口仍返回 200"。
 	user_skills = {
