@@ -1,0 +1,74 @@
+{
+  "dataset": "CareerOS Job Postings Sample",
+  "version": "0.2.0-draft",
+  "status": "draft",
+  "contract_version": "V1.0",
+  "generated_at": "2026-11-20T08:42:32",
+  "sources": [
+    {
+      "platform": "recruit_hub",
+      "name": "校招宝 recruit-hub 开源数据集",
+      "repo": "https://github.com/kknee-dev/recruit-hub",
+      "files": [
+        "jobs-2026-09-03.csv",
+        "jobs-2026-10-01.csv",
+        "jobs-1101.csv"
+      ],
+      "time_range": "2026-08-28 ~ 2026-10-30",
+      "license_note": "聚合自企业公开校招公告与招聘平台，已脱敏；原仓库声明仅作技术演示与检索研究"
+    },
+    {
+      "platform": "lagou",
+      "name": "和鲸社区「【拉勾招聘】2万多条技术岗位的招聘数据」",
+      "url": "https://www.heywhale.com/mw/dataset/659e362916c9b1fb045bf0d8",
+      "author": "Blues",
+      "files": [
+        "lagou_raw.csv"
+      ],
+      "time_range": "2022-08-05 ~ 2024-01-07",
+      "license_note": "公开数据集，原页面注明可自由下载使用，建议标注来源（和鲸社区 / 拉勾招聘）"
+    }
+  ],
+  "row_counts": {
+    "recruit_hub": 20307,
+    "lagou": 14736,
+    "total": 35043,
+    "mainland": 32331,
+    "overseas": 2712,
+    "with_salary": 18461,
+    "with_education": 24519,
+    "with_work_year": 14736,
+    "with_jd": 14736,
+    "descriptions": 14736
+  },
+  "columns": [
+    "job_id",
+    "platform",
+    "source_ref",
+    "position_name",
+    "job_category",
+    "job_subcategory",
+    "company_name",
+    "company_size",
+    "industry",
+    "city",
+    "region",
+    "education",
+    "work_year",
+    "salary_min",
+    "salary_max",
+    "batch",
+    "publish_date",
+    "has_jd"
+  ],
+  "sha256": {
+    "job_postings.csv": "f3756e723c58274304f93ce3970a10d632e4861a1ef24710222c7a58ed1b373e",
+    "job_descriptions.csv": "68a2d02ac4eea3400be2b5b404cf5d9e3ca795c83bec2892380257589d891191"
+  },
+  "known_gaps": [
+    "两源时间不重叠：拉勾 2022-08~2024-01、recruit-hub 2026-08~2026-10，跨源趋势对比需按平台分组",
+    "拉勾无技能标签字段，但 JD 正文 100% 有值，可做关键词抽取",
+    "recruit-hub 无工作经验字段，合并后该列仅拉勾源有值",
+    "字段为建议稿，待 data_contract.md 走 ADR-006 确认"
+  ]
+}
