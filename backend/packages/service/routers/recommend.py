@@ -81,6 +81,45 @@ def _load_occupation_requirements() -> list[dict]:
 async def list_skills():
 	return ApiResponse(code=200, message="success", data=_load_used_skills())
 
+def _load_known_skill_ids() -> set[str]:
+	"""知识库技能表全量 ID。
+
+	口径以 skills.csv 的 35 条为准，而不是只认被职业引用的 33 条。零引用技能
+	（Equipment Selection、Installation）传进来不会得出错误结论，只是不贡献
+	分数；「技能表里根本没有」才是请求错误。前端可选项以 GET /api/v1/skills 为准。
+	"""
+	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
+		return {row["skill_id"] for row in csv.DictReader(file)}
+
+
+def _reject_unknown_skill_ids(profile: ProfileInput) -> JSONResponse | None:
+	"""技能 ID 必须存在于知识库。
+
+	模型层只能保证 skill_id 是字符串，拼错的 ID 会一路进到算法，因匹配不到任何
+	职业要求而贡献 0 分，接口却返回 200 —— 与「越界等级被静默丢弃」是同一类问题：
+	调用方以为数据生效了，实际没有。这里按条目定位，一次列出全部无效 ID。
+	"""
+	known_skill_ids = _load_known_skill_ids()
+	errors = [
+		{
+			"field": f"profile.skills.{index}.skill_id",
+			"message": f"技能 ID 不存在：{item.skill_id}",
+		}
+		for index, item in enumerate(profile.skills)
+		if item.skill_id not in known_skill_ids
+	]
+	if not errors:
+		return None
+	return JSONResponse(
+		status_code=422,
+		content=ApiResponse(
+			code=422,
+			message="请求参数不符合要求",
+			data={"errors": errors},
+		).model_dump(),
+	)
+
+
 def _reject_empty_skills(profile: ProfileInput) -> JSONResponse | None:
 	"""skills 少于 1 条直接拒绝。冻结单要求至少 1 项。
 
@@ -106,6 +145,9 @@ async def recommend(request: RecommendationRequest):
 	rejected = _reject_empty_skills(profile)
 	if rejected is not None:
 		return rejected
+	invalid = _reject_unknown_skill_ids(profile)
+	if invalid is not None:
+		return invalid
 	# 等级范围由 SkillInput 保证（0～4），越界请求在进入本函数前已被 422 拦下，
 	# 因此这里不再做过滤，避免"越界条目被静默丢弃、接口仍返回 200"。
 	user_skills = {
