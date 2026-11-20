@@ -83,7 +83,10 @@ async def list_skills():
 async def recommend(request: RecommendationRequest):
 	profile = request.profile
 	user_skills = {
-		item["skill_id"]: item["self_level"]
+		item["skill_id"]: {
+			"level": item["self_level"],
+			"evidence": item.get("evidence_level"),
+		}
 		for item in profile.get("skills", [])
 		if isinstance(item, dict)
 		and isinstance(item.get("skill_id"), str)
