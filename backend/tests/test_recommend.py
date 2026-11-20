@@ -126,3 +126,66 @@ def test_training_inference_deduplicates_identical_occupations():
     recommendations = generate_recommendations({"lower": 2, "higher": 2}, occupations)
 
     assert len(recommendations) == 1
+
+
+# ---------------------------------------------------------------------------
+# 画像入参边界（契约 §2.2：self_level 为 int，取值 0～4）
+# ---------------------------------------------------------------------------
+def _post_skill(skill: dict) -> object:
+    return client.post("/api/v1/recommendations", json={"profile": {"skills": [skill]}})
+
+
+def test_recommendation_rejects_self_level_above_max():
+    """self_level=5 必须 422。
+
+    旧实现在路由层按 0<=level<=4 过滤，越界条目被静默丢弃、
+    接口仍返回 200，调用方无从察觉该技能没有参与计算。
+    """
+    response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 5})
+
+    assert response.status_code == 422
+    body = response.json()
+    # 与 _reject_empty_skills 的 422 保持同一格式，前端只需一套解析
+    assert body["code"] == 422
+    error = body["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.self_level"
+    assert "不能大于 4" in error["message"]
+
+
+def test_recommendation_rejects_negative_self_level():
+    response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": -1})
+
+    assert response.status_code == 422
+
+
+def test_recommendation_accepts_boundary_self_levels():
+    """0 与 4 是契约闭区间端点，必须放行。"""
+    for level in (0, 4):
+        response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": level})
+
+        assert response.status_code == 200, f"self_level={level} 应被接受"
+
+
+def test_missing_self_level_defaults_to_zero():
+    """字段缺失沿用"没填 = 0 级"的既有约定，结果需与显式传 0 完全一致。"""
+    missing = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a"})
+    explicit = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 0})
+
+    assert missing.status_code == 200
+    assert explicit.status_code == 200
+    assert missing.json()["data"] == explicit.json()["data"]
+
+
+def test_profile_extra_fields_are_tolerated():
+    """画像里多传字段（学历、偏好等）不应导致 422。"""
+    response = client.post("/api/v1/recommendations", json={
+        "profile": {
+            "user_id": "u-extra",
+            "education_level": "本科",
+            "preferences": {"interest_areas": ["数据"]},
+            "skills": [{"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 2, "note": "自学"}],
+        },
+    })
+
+    assert response.status_code == 200
+    assert response.json()["data"]["user_id"] == "u-extra"

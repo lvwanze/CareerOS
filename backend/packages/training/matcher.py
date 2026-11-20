@@ -186,9 +186,10 @@ def _normalize_evidence(value) -> str:
     matcher 可能被脚本、离线任务、单元测试直接使用，不该因为一个证据字段
     就让整批计算中断。告警用于留痕，避免前端传错枚举值静默变成「无证据」。
 
-    注意与 API 层的分工：HTTP 边界由 service 层用 Pydantic Literal 校验，
-    未知值在那里就返回 422 并列出 7 个允许值，不会走到本函数。
-    因此本函数的宽容只影响直接调用场景，不构成对外的静默降级。
+    注意与 API 层的分工：self_level 的范围由 service 层 SkillInput 拦成 422，
+    不会走到本函数；evidence_level 因契约枚举尚未冻结，API 层暂不做硬校验，
+    未知值会落到这里归一为 none（HTTP 仍 200），因此本函数的宽容对外可见。
+    待契约冻结后应在 schemas 层补 Literal，届时本函数只服务直接调用场景。
     """
     if value is None:
         return EVIDENCE_NONE

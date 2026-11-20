@@ -7,6 +7,7 @@ from packages.core.schemas import (
 	ApiResponse,
 	DevelopmentNode,
 	DevelopmentPath,
+	ProfileInput,
 	RecommendationRequest,
 	RecommendationsResponse,
 	RecommendationsResponseData,
@@ -80,9 +81,13 @@ def _load_occupation_requirements() -> list[dict]:
 async def list_skills():
 	return ApiResponse(code=200, message="success", data=_load_used_skills())
 
-def _reject_empty_skills(profile: dict) -> JSONResponse | None:
-	"""skills 少于 1 条直接拒绝。冻结单要求至少 1 项，越界值仍走静默过滤。"""
-	skills = profile.get("skills")
+def _reject_empty_skills(profile: ProfileInput) -> JSONResponse | None:
+	"""skills 少于 1 条直接拒绝。冻结单要求至少 1 项。
+
+	本函数只管条数；单条技能的 self_level 越界由 ProfileInput → SkillInput
+	的 ge=0/le=4 在进入路由前拦成 422，不再走过滤式静默丢弃。
+	"""
+	skills = profile.skills
 	if isinstance(skills, list) and len(skills) >= 1:
 		return None
 	return JSONResponse(
@@ -101,16 +106,14 @@ async def recommend(request: RecommendationRequest):
 	rejected = _reject_empty_skills(profile)
 	if rejected is not None:
 		return rejected
+	# 等级范围由 SkillInput 保证（0～4），越界请求在进入本函数前已被 422 拦下，
+	# 因此这里不再做过滤，避免"越界条目被静默丢弃、接口仍返回 200"。
 	user_skills = {
-		item["skill_id"]: {
-			"level": item["self_level"],
-			"evidence": item.get("evidence_level"),
+		item.skill_id: {
+			"level": item.self_level,
+			"evidence": item.evidence_level,
 		}
-		for item in profile.get("skills", [])
-		if isinstance(item, dict)
-		and isinstance(item.get("skill_id"), str)
-		and isinstance(item.get("self_level"), int)
-		and 0 <= item["self_level"] <= 4
+		for item in profile.skills
 	}
 	recommendations = generate_recommendations(user_skills, _load_occupation_requirements())
 	development_paths = []
@@ -133,7 +136,7 @@ async def recommend(request: RecommendationRequest):
 		))
 	return RecommendationsResponse(
 		data=RecommendationsResponseData(
-			user_id=profile.get("user_id", "anonymous"),
+			user_id=profile.user_id if profile.user_id is not None else "anonymous",
 			model_version=MODEL_VERSION,
 			recommendations=recommendations,
 			development_paths=development_paths,
