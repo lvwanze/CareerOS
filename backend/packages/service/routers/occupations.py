@@ -23,6 +23,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from packages.core.name_text import clean_name
 from packages.core.schemas import ApiResponse
 
 logger = logging.getLogger(__name__)
@@ -32,18 +33,6 @@ router = APIRouter(prefix="/api/v1", tags=["occupations"])
 # routers/occupations.py -> parents[0]=routers [1]=service [2]=packages [3]=backend
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 REFERENCE_DIR = DATA_DIR / "reference"
-
-# Excel 另存 CSV 的常见残留值，统一当作「没有中文名」
-_EMPTY_VALUES = {"", "nan", "none", "null", "na", "n/a", "-"}
-
-
-def _clean(value: object) -> str:
-    if value is None:
-        return ""
-    text = str(value).replace("\ufeff", "").strip()
-    if text.lower() in _EMPTY_VALUES:
-        return ""
-    return text
 
 
 def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
@@ -56,8 +45,8 @@ def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
     table: dict[str, str] = {}
     with path.open(encoding="utf-8-sig", newline="") as file:
         for row in csv.DictReader(file):
-            key_value = _clean(row.get(id_field))
-            name_zh = _clean(row.get("name_zh"))
+            key_value = clean_name(row.get(id_field))
+            name_zh = clean_name(row.get("name_zh"))
             if key_value and name_zh:
                 table[key_value] = name_zh
     return table
@@ -65,7 +54,7 @@ def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
 
 def _name_zh(table: dict[str, str], key_value: str, fallback: str) -> str:
     """回退链：映射命中 -> 英文名 -> id，保证永不为空。"""
-    return table.get(key_value) or _clean(fallback) or key_value
+    return table.get(key_value) or clean_name(fallback) or key_value
 
 
 def _load_skill_rows() -> dict[str, dict]:
