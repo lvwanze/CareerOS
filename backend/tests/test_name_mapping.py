@@ -155,3 +155,32 @@ def test_reference_mapping_matches_manifest():
         with (REFERENCE_DIR / filename).open(encoding="utf-8-sig", newline="") as file:
             row_count = sum(1 for _ in csv.DictReader(file))
         assert row_count == meta["row_count"], f"{filename} 行数与 manifest 登记不一致"
+
+
+def test_name_zh_residue_values_fall_back_to_english(tmp_path, monkeypatch):
+    """Excel 导出的 nan / NULL / - 不能当中文名返回。
+
+    两个接口共用同一份映射文件，但加载器曾是两份实现：occupations 有残留值
+    黑名单，recommend 只挡空串，同一个技能会在 /skills 与 /occupations 拿到
+    不同名字（一个是 "nan"，一个是英文名）。现在统一走 core.name_text.clean_name，
+    这条测试两边一起断言，防止再次分叉。
+    """
+    (tmp_path / "skill_name_zh.csv").write_text(
+        "skill_id,name_zh\nSKILL-ONET-2.B.3.e,nan\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "occupation_name_zh.csv").write_text(
+        "occupation_id,name_zh\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(recommend, "REFERENCE_DIR", tmp_path)
+    monkeypatch.setattr(occupations, "REFERENCE_DIR", tmp_path)
+
+    skills = {item["skill_id"]: item for item in client.get("/api/v1/skills").json()["data"]}
+    assert skills["SKILL-ONET-2.B.3.e"]["name_zh"] == "Programming"
+
+    detail = client.get("/api/v1/occupations/OCC-ONET-15-1211.00").json()["data"]
+    programming = next(
+        item for item in detail["skills"] if item["skill_id"] == "SKILL-ONET-2.B.3.e"
+    )
+    assert programming["name_zh"] == "Programming"
