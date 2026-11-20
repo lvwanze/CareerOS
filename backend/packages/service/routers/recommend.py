@@ -1,8 +1,10 @@
 import csv
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from packages.core.name_text import clean_name
 from packages.core.schemas import (
 	ApiResponse,
 	DevelopmentNode,
@@ -16,12 +18,26 @@ from packages.core.schemas import (
 from packages.training.inference import MODEL_VERSION, generate_recommendations
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
+logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+REFERENCE_DIR = DATA_DIR / "reference"
 
 
 def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
-	with (DATA_DIR / "reference" / filename).open(encoding="utf-8", newline="") as file:
-		return {row[id_field]: row["name_zh"] for row in csv.DictReader(file)}
+	"""读参考映射。文件缺失或某行没中文名时返回空表，调用方回退英文名，
+	不让服务因为少一个翻译文件就整体 500。清洗口径见 core.name_text。"""
+	path = REFERENCE_DIR / filename
+	if not path.is_file():
+		logger.warning("中文名映射缺失，回退英文名：%s", path)
+		return {}
+	table: dict[str, str] = {}
+	with path.open(encoding="utf-8-sig", newline="") as file:
+		for row in csv.DictReader(file):
+			key_value = clean_name(row.get(id_field))
+			name_zh = clean_name(row.get("name_zh"))
+			if key_value and name_zh:
+				table[key_value] = name_zh
+	return table
 
 
 def _load_used_skills() -> list[SkillOption]:
