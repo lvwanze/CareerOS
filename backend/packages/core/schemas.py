@@ -95,7 +95,11 @@ class SkillInput(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    skill_id: str = Field(..., description="技能唯一ID")
+    skill_id: str = Field(
+        ...,
+        min_length=1,
+        description="技能唯一ID，必须存在于知识库技能表",
+    )
     self_level: int = Field(
         0,
         ge=0,

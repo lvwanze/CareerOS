@@ -189,3 +189,53 @@ def test_profile_extra_fields_are_tolerated():
 
     assert response.status_code == 200
     assert response.json()["data"]["user_id"] == "u-extra"
+
+
+# ---------------------------------------------------------------------------
+# 技能 ID 有效性（契约 §6：技能 ID 必须有效）
+# ---------------------------------------------------------------------------
+def test_recommendation_rejects_unknown_skill_id():
+    """拼错的 ID 不能再静默算 0 分后返回 200。"""
+    response = _post_skill({"skill_id": "SKILL-NOT-EXIST", "self_level": 2})
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["code"] == 422
+    error = body["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.skill_id"
+    assert "SKILL-NOT-EXIST" in error["message"]
+
+
+def test_recommendation_rejects_blank_skill_id():
+    """空串由 SkillInput 的 min_length=1 拦下，仍走同一套 422 信封。"""
+    response = _post_skill({"skill_id": "", "self_level": 2})
+
+    assert response.status_code == 422
+    assert response.json()["data"]["errors"][0]["field"] == "profile.skills.0.skill_id"
+
+
+def test_recommendation_reports_every_unknown_skill_id():
+    """一次列出全部无效 ID，前端不用逐条试错。"""
+    response = client.post("/api/v1/recommendations", json={"profile": {"skills": [
+        {"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 2},
+        {"skill_id": "BAD-A", "self_level": 1},
+        {"skill_id": "BAD-B", "self_level": 1},
+    ]}})
+
+    assert response.status_code == 422
+    errors = response.json()["data"]["errors"]
+    assert [error["field"] for error in errors] == [
+        "profile.skills.1.skill_id",
+        "profile.skills.2.skill_id",
+    ]
+
+
+def test_recommendation_accepts_zero_reference_skill_id():
+    """零引用技能算有效 ID：它只是不贡献分数，不会得出错误结论。
+
+    口径写在 docs/api_spec.md §6：有效性以知识库技能表 35 条为准，
+    前端可选项才是 used_in_kb=true 的 33 条。
+    """
+    response = _post_skill({"skill_id": "SKILL-ONET-2.B.3.c", "self_level": 2})
+
+    assert response.status_code == 200
