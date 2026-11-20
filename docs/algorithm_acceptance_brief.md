@@ -1,7 +1,7 @@
 # 算法侧验收口径说明（matcher-v1）
 
 > 供测试侧复测与报告引用。本文所有数值均为本地实测，非估算。
-> 对应分支 `feature/model`，提交 `5d258da`。
+> 对应分支 `feature/model`，提交 `8de7ce2`。
 
 ---
 
@@ -13,7 +13,7 @@
 | 唯一来源 | `backend/packages/training/matcher.py` → `MODEL_VERSION` |
 | 对外出口 | `POST /api/v1/recommendations` 响应 `data.model_version` |
 | 算法接入提交 | `a631abf`（`inference.py` 改为调用 `matcher`） |
-| 口径修订提交 | `1bf2817`（版本号单点化）、`5d258da`（`evidence_level` 透传） |
+| 口径修订提交 | `1bf2817`（版本号单点化）、`5d258da`（`evidence_level` 透传）、`8de7ce2`（`self_level` 越界改为 422） |
 
 **注意（此前存在不一致，已修）**：路由层曾把 `model_version` 硬编码为 `weighted-knowledge-base-v1`，与 `matcher.MODEL_VERSION`、`d4_cases.json` 三处不一致。现已统一为单一来源，接口返回与算法层、回归基线三者一致。
 
@@ -185,13 +185,16 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 
 `none` / `self` / `course` / `project` / `work` / `certificate` / `test`
 
-| 入参情况 | 实际处理 |
+| 入参情况 | 实际处理（HTTP 路径实测） |
 | --- | --- |
-| 不传该字段 | 按 `self` 处理（不判待验证） |
-| 显式传 `none` | 按「无证据」处理，可能产出 `needs_verification` |
-| 传未知值（如 `projct`） | 算法层告警并归为 `none`；契约建议 API 层以 `Literal` 拦为 422 |
+| 不传该字段 / 传 `null` / 传空串 | 按 `self` 处理（不判待验证），HTTP 200 |
+| 显式传 `none` | 按「无证据」处理，产出 `needs_verification` |
+| 传大小写混杂（如 `PROJECT`） | 归一为 `project`，正常判 `mastered` |
+| 传未知值（如 `projct`） | 算法层告警并归为 `none`，产出 `needs_verification`，**HTTP 仍 200**（当前不做枚举硬校验，原因见下） |
 
-> 契约 §2.2 的 `evidence_level` 枚举至今标注「待确认」，建议下一版冻结，否则前后端各写一套会静默失配。
+**证据只影响 `status`，不影响 `match_score`。** 实测同一画像 6 种证据输入（不传 / `null` / 空串 / `none` / `projct` / `PROJECT`），最高分恒为 `0.1170`，仅 `status` 在 `mastered` 与 `needs_verification` 间变化。复测时不要用「分数随证据变化」做断言。
+
+> 契约 §2.2 的 `evidence_level` 枚举至今标注「待确认」，因此本轮**未**把它收敛为 `Literal` 硬校验，避免契约冻结时误伤新增合法值。`self_level` 因契约已明确 `int 0~4`，本轮已改为越界 422（见第五节）。建议下一版契约同时冻结证据枚举，届时再补 API 层校验。
 
 ### 4.4 返回条数
 
@@ -218,13 +221,24 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 | 空画像 | `skills: []` | HTTP 200，`recommendations` 为 **0 条** |
 | 技能不存在 | `skill_id: "SKILL-FAKE-999"` | HTTP 200，该技能被忽略，正常返回 5 条 |
 | 未知证据值 | `evidence_level: "projct"` | HTTP 200，按 `none` 处理 |
-| `self_level = 5` | 越界值 | **HTTP 200，该项被静默丢弃**，可能导致返回 0 条（见下方已知问题） |
+| `self_level` 缺失 | 不传该字段 | HTTP 200，按 **0 级**处理（与显式传 0 结果逐字段一致） |
+| `self_level = 5` / `-1` / `99` | 越界值 | **HTTP 422**，`detail[0].loc` 精确指向 `body.profile.skills[0].self_level` |
 | `top_k = 0` | 算法层直接调用 | 返回空列表 |
 | 超过去重上限的 `top_k` | `top_k=100` | 返回去重后实际可选条数（25~28），不报错 |
 
-### 已知问题（待后端确认，非算法层）
+### 入参越界已改为 422（本轮修复）
 
-`self_level` 越界（如 5、−1）在路由层被**静默丢弃**，接口返回 200 与空结果，用户得不到任何输入错误提示。建议改为返回 422 并说明允许范围 0~4。当前行为已按实测记录，复测时请按「返回 200 且该项不生效」预期，不要按 422 断言。
+早期版本在路由层用 `0 <= self_level <= 4` 做过滤，越界条目被**静默丢弃**且仍返回 200，调用方无从察觉该技能没有参与计算，极端情况下会拿到 0 条推荐却看不到任何错误。
+
+现已将请求体收敛为 pydantic 模型（`packages/core/schemas.py` 的 `SkillInput` / `ProfileInput`），越界在进入业务逻辑前即被拦下：
+
+```json
+HTTP 422
+{"detail":[{"type":"less_than_equal","loc":["body","profile","skills",0,"self_level"],
+            "msg":"Input should be less than or equal to 4","input":5,"ctx":{"le":4}}]}
+```
+
+约定不变的部分：字段缺失仍按 0 级处理；未知 `skill_id` 仍告警并忽略；`evidence_level` 非法值仍归一为 `none`。**复测时请按 422 断言**，不再按「200 且该项不生效」。
 
 ---
 

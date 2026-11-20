@@ -43,13 +43,21 @@
 | --- | --- | --- | --- | --- |
 | `user_id` | str | 否 | — | 仅透传，算法不使用 |
 | `skills[].skill_id` | str | 是 | 35 个已知技能 ID | 不在白名单则**告警并忽略该条** |
-| `skills[].self_level` | int | 是 | 0 ~ 4 | 缺省按 0；越界直接 `ValueError` |
-| `skills[].evidence_level` | str | 否 | `none / self / course / project / work / certificate / test` | 缺省 `none`；未知值告警后按 `none` |
+| `skills[].self_level` | int | 是 | 0 ~ 4 | 缺省按 0；越界抛 `ValueError`，HTTP 层由 `SkillInput` 拦成 **422** |
+| `skills[].evidence_level` | str | 否 | `none / self / course / project / work / certificate / test` | **HTTP 层缺省 `self`**；未知值归 `none` 并告警；大小写与首尾空白不敏感 |
 
-**两条输入约定：**
+**三条输入约定：**
 
 1. **没填 = 0 级 + 无证据。** 用户画像里不出现的技能不会报错，按 `(0, "none")` 参与计算。这是「分母用职业全量技能」得以成立的前提。
-2. **`self_level` 越界不宽容。** `[-1]` 或 `[5]` 直接抛 `ValueError`，不做截断——静默截断会让用户以为 5 级被记录了。HTTP 边界由 service 层 Pydantic 拦成 422，不会漏成 500。
+2. **`self_level` 越界不宽容。** `[-1]` 或 `[5]` 直接抛 `ValueError`，不做截断——静默截断会让用户以为 5 级被记录了。HTTP 边界由 `packages/core/schemas.py::SkillInput` 用 `ge=0, le=4` 拦成 422，`loc` 精确到 `body.profile.skills[i].self_level`，不会漏成 200 或 500。
+3. **`evidence_level` 的缺省值分两层，不要混用。**
+
+   | 调用方式 | 不传 / `null` / 空串 | 未知字符串（如 `projct`） |
+   | --- | --- | --- |
+   | HTTP（`generate_recommendations`） | `self`（已具备） | 归 `none`（待验证），HTTP 仍 200 |
+   | 直接调 `matcher.recommend` | `none`（待验证） | 归 `none`（待验证） |
+
+   分层的理由：HTTP 侧对应前端问卷，用户勾了技能就算「我做过」；matcher 侧可能被离线脚本或单元测试调用，没有问卷语境，宁可按无证据算。**证据只影响 `status`，不参与 `match_score` 计算**——实测 6 种证据输入，最高分恒为 `0.1170`。
 
 ---
 
