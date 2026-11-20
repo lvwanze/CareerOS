@@ -235,6 +235,9 @@ Jaccard(A, B) = |A ∩ B| / |A ∪ B|         A、B 为职业技能集合
 | 2026-11-18 15:21 | matcher-v1 | 修 `evidence_level` 归一化缺陷（`"NONE"` / `" non "` / 拼错值曾被当作有证据，直接判 `mastered`）；去重阈值改为可配；补 D4 输入用例 |
 | 2026-11-18 17:25 | matcher-v1 | 随仓库 `backend/` 目录重构迁移，迁移前后分数完全一致 |
 | 2026-11-19 | matcher-v1 | 抽出 `build_index` / `recommend_from_index` 支持数据注入；`inference.py` 改为调用 matcher，恢复被简化的去重与三档判定。分数变化来自实现差异（0.4105→0.4620），与中文名无关 |
+| 2026-11-20 | matcher-v1 | 版本号改为从 `MODEL_VERSION` 单点获取，消除路由硬编码 `weighted-knowledge-base-v1` 造成的一处不一致；路由透传 `evidence_level`，修复 `needs_verification` 在 HTTP 链路上永不出现的问题。修复后 `d4_cases.json` 两组基线经接口复测，分数与顺序完全一致 |
+
+> 验收口径（版本号确认方式、画像定义、`match_score` 取值范围、字段映射、边界行为）另见 `docs/algorithm_acceptance_brief.md`。
 
 ---
 
