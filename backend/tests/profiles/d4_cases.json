@@ -1,0 +1,210 @@
+{
+  "model_version": "matcher-v1",
+  "tolerance": 0.01,
+  "note": "request 可直接 POST /api/v1/recommendations；request.profile 即 matcher.recommend() 的入参。expected 为 D4 回归基线，绝对误差不超过 tolerance。",
+  "cases": [
+    {
+      "name": "high_match",
+      "request": {
+        "profile": {
+          "user_id": "user_high",
+          "skills": [
+            {
+              "skill_id": "SKILL-ONET-2.B.3.e",
+              "self_level": 4,
+              "evidence_level": "project"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.1.e",
+              "self_level": 4,
+              "evidence_level": "project"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.2.a",
+              "self_level": 3,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.4.g",
+              "self_level": 3,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.4.h",
+              "self_level": 3,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.2.i",
+              "self_level": 3,
+              "evidence_level": "project"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.3.b",
+              "self_level": 3,
+              "evidence_level": "project"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.3.a",
+              "self_level": 2,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.4.e",
+              "self_level": 2,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.1.a",
+              "self_level": 3,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.2.b",
+              "self_level": 3,
+              "evidence_level": "self"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.5.a",
+              "self_level": 3,
+              "evidence_level": "self"
+            }
+          ]
+        }
+      },
+      "expected": [
+        {
+          "occupation_id": "OCC-ONET-15-1252.00",
+          "match_score": 0.751
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.00",
+          "match_score": 0.714
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1255.00",
+          "match_score": 0.705
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1243.00",
+          "match_score": 0.647
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2099.01",
+          "match_score": 0.631
+        }
+      ],
+      "actual_now": [
+        {
+          "occupation_id": "OCC-ONET-15-1252.00",
+          "occupation_name": "Software Developers",
+          "match_score": 0.751
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.00",
+          "occupation_name": "Data Scientists",
+          "match_score": 0.714
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1255.00",
+          "occupation_name": "Web and Digital Interface Designers",
+          "match_score": 0.705
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1243.00",
+          "occupation_name": "Database Architects",
+          "match_score": 0.647
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2099.01",
+          "occupation_name": "Bioinformatics Technicians",
+          "match_score": 0.631
+        }
+      ]
+    },
+    {
+      "name": "low_match",
+      "request": {
+        "profile": {
+          "user_id": "user_low",
+          "skills": [
+            {
+              "skill_id": "SKILL-ONET-2.A.1.a",
+              "self_level": 2,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.1.d",
+              "self_level": 2,
+              "evidence_level": "none"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.1.c",
+              "self_level": 2,
+              "evidence_level": "course"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.A.1.b",
+              "self_level": 2,
+              "evidence_level": "self"
+            },
+            {
+              "skill_id": "SKILL-ONET-2.B.5.a",
+              "self_level": 2,
+              "evidence_level": "self"
+            }
+          ]
+        }
+      },
+      "expected": [
+        {
+          "occupation_id": "OCC-ONET-15-1255.00",
+          "match_score": 0.383
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.00",
+          "match_score": 0.334
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1212.00",
+          "match_score": 0.312
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.01",
+          "match_score": 0.307
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2099.01",
+          "match_score": 0.297
+        }
+      ],
+      "actual_now": [
+        {
+          "occupation_id": "OCC-ONET-15-1255.00",
+          "occupation_name": "Web and Digital Interface Designers",
+          "match_score": 0.383
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.00",
+          "occupation_name": "Data Scientists",
+          "match_score": 0.334
+        },
+        {
+          "occupation_id": "OCC-ONET-15-1212.00",
+          "occupation_name": "Information Security Analysts",
+          "match_score": 0.312
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2051.01",
+          "occupation_name": "Business Intelligence Analysts",
+          "match_score": 0.307
+        },
+        {
+          "occupation_id": "OCC-ONET-15-2099.01",
+          "occupation_name": "Bioinformatics Technicians",
+          "match_score": 0.297
+        }
+      ]
+    }
+  ]
+}

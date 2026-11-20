@@ -82,6 +82,36 @@ def test_skills_endpoint_returns_chinese_names_from_reference_mapping():
 
 
 def test_training_inference_caps_results_and_sorts_skill_gaps():
+    # 每个职业额外挂一个独有技能，保证两两 Jaccard 只有 2/4，
+    # 不会因为职业技能集合雷同被相似度去重剔除。
+    occupations = [
+        {
+            "occupation_id": f"occupation-{index}",
+            "occupation_name": f"Occupation {index}",
+            "skills": [
+                {"skill_id": "lower", "skill_name": "Lower", "importance": 3.0, "required_level": 2},
+                {"skill_id": "higher", "skill_name": "Higher", "importance": 4.0, "required_level": 2},
+                {
+                    "skill_id": f"unique-{index}",
+                    "skill_name": f"Unique {index}",
+                    "importance": 2.0,
+                    "required_level": 1,
+                },
+            ],
+        }
+        for index in range(7)
+    ]
+    recommendations = generate_recommendations({"lower": 1}, occupations)
+
+    assert len(recommendations) == 5
+    assert [gap.importance for gap in recommendations[0].skill_gaps] == [4.0, 3.0, 2.0]
+
+
+def test_training_inference_deduplicates_identical_occupations():
+    """职业技能集合完全相同（Jaccard=1.0）时只保留一个。
+
+    不加去重的话，Top-5 会变成同一个职业的五张卡片。
+    """
     occupations = [
         {
             "occupation_id": f"occupation-{index}",
@@ -93,7 +123,6 @@ def test_training_inference_caps_results_and_sorts_skill_gaps():
         }
         for index in range(7)
     ]
-    recommendations = generate_recommendations({"lower": 1}, occupations)
+    recommendations = generate_recommendations({"lower": 2, "higher": 2}, occupations)
 
-    assert len(recommendations) == 5
-    assert [gap.importance for gap in recommendations[0].skill_gaps] == [4.0, 3.0]
+    assert len(recommendations) == 1

@@ -12,7 +12,7 @@ from packages.core.schemas import (
 	RecommendationsResponseData,
 	SkillOption,
 )
-from packages.training.inference import generate_recommendations
+from packages.training.inference import MODEL_VERSION, generate_recommendations
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
@@ -102,7 +102,10 @@ async def recommend(request: RecommendationRequest):
 	if rejected is not None:
 		return rejected
 	user_skills = {
-		item["skill_id"]: item["self_level"]
+		item["skill_id"]: {
+			"level": item["self_level"],
+			"evidence": item.get("evidence_level"),
+		}
 		for item in profile.get("skills", [])
 		if isinstance(item, dict)
 		and isinstance(item.get("skill_id"), str)
@@ -131,7 +134,7 @@ async def recommend(request: RecommendationRequest):
 	return RecommendationsResponse(
 		data=RecommendationsResponseData(
 			user_id=profile.get("user_id", "anonymous"),
-			model_version="weighted-knowledge-base-v1",
+			model_version=MODEL_VERSION,
 			recommendations=recommendations,
 			development_paths=development_paths,
 		)
