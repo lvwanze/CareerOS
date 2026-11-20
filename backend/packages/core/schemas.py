@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Literal, Any, ForwardRef, Optional
 import uuid
 
@@ -85,8 +85,37 @@ class RecommendationsResponse(ApiResponse):
     data: RecommendationsResponseData
 
 
+class SkillInput(BaseModel):
+    """画像中的单条技能自评，对齐 data_contract.md §2.2。
+
+    self_level 契约规定 0～4，越界由 pydantic 直接拒为 422。
+    此前路由层用 `0 <= level <= 4` 做过滤，越界条目被静默丢弃且仍返回 200，
+    调用方无法感知数据没生效；改为模型校验后越界即报错。
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    skill_id: str = Field(..., description="技能唯一ID")
+    self_level: int = Field(
+        0,
+        ge=0,
+        le=4,
+        description="用户自评等级(0-4)，字段缺失按 0 处理",
+    )
+    evidence_level: Optional[str] = Field(None, description="能力证据状态")
+
+
+class ProfileInput(BaseModel):
+    """用户画像。推荐链路只读 user_id 与 skills，其余字段原样保留。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    user_id: Optional[str] = Field(None, description="用户ID")
+    skills: List[SkillInput] = Field(default_factory=list, description="技能自评列表")
+
+
 class RecommendationRequest(BaseModel):
-    profile: dict = Field(default_factory=dict)
+    profile: ProfileInput = Field(default_factory=ProfileInput)
 
 
 # 职业推荐响应模型

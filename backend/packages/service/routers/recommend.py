@@ -82,16 +82,14 @@ async def list_skills():
 @router.post("/recommendations", response_model=RecommendationsResponse)
 async def recommend(request: RecommendationRequest):
 	profile = request.profile
+	# 等级范围由 SkillInput 保证（0～4），越界请求在进入本函数前已被 422 拦下，
+	# 因此这里不再做过滤，避免"越界条目被静默丢弃、接口仍返回 200"。
 	user_skills = {
-		item["skill_id"]: {
-			"level": item["self_level"],
-			"evidence": item.get("evidence_level"),
+		item.skill_id: {
+			"level": item.self_level,
+			"evidence": item.evidence_level,
 		}
-		for item in profile.get("skills", [])
-		if isinstance(item, dict)
-		and isinstance(item.get("skill_id"), str)
-		and isinstance(item.get("self_level"), int)
-		and 0 <= item["self_level"] <= 4
+		for item in profile.skills
 	}
 	recommendations = generate_recommendations(user_skills, _load_occupation_requirements())
 	development_paths = []
@@ -114,7 +112,7 @@ async def recommend(request: RecommendationRequest):
 		))
 	return RecommendationsResponse(
 		data=RecommendationsResponseData(
-			user_id=profile.get("user_id", "anonymous"),
+			user_id=profile.user_id if profile.user_id is not None else "anonymous",
 			model_version=MODEL_VERSION,
 			recommendations=recommendations,
 			development_paths=development_paths,
