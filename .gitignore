@@ -18,3 +18,14 @@ backend/mlflow/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# 招聘市场样本（M2）：35,043 行 / 约 20MB。入库会让仓库从 1MB 涨到 21MB，
+# 且每次重跑数据都新增一份历史，故不入库；按 scripts/clean_recruitment.py
+# 与 backend/data/processed/job_postings.manifest.json 的 sha256 可重建。
+backend/data/processed/job_postings.csv
+backend/data/processed/job_descriptions.csv
+
+# 本地交付包与旧布局副本，不属于仓库内容
+M1_职业知识库_数据交付_v0.4.0_20261118/
+M1_职业知识库_数据交付_v0.4.0_20261118.zip
+/data/
