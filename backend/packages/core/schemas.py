@@ -104,7 +104,7 @@ class SkillInput(BaseModel):
         min_length=1,
         description="技能唯一ID，必须存在于知识库技能表",
     )
-    self_level: int = Field(
+    self_level: StrictInt = Field(
         0,
         ge=0,
         le=4,
