@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing import List, Literal, Any, ForwardRef, Optional
 import uuid
 
@@ -91,6 +91,10 @@ class SkillInput(BaseModel):
     self_level 契约规定 0～4，越界由 pydantic 直接拒为 422。
     此前路由层用 `0 <= level <= 4` 做过滤，越界条目被静默丢弃且仍返回 200，
     调用方无法感知数据没生效；改为模型校验后越界即报错。
+
+    类型必须是 StrictInt 而不是 int：pydantic 的宽松模式会把 "3" 转成 3、
+    把 3.0 截成 3、把 true 当成 1 级。契约 §2.2 写的是 int，字符串和布尔
+    都不该被"善意猜测"，否则 true 会静默变成 1 级，比报错更难查。
     """
 
     model_config = ConfigDict(extra="allow")
@@ -104,7 +108,7 @@ class SkillInput(BaseModel):
         0,
         ge=0,
         le=4,
-        description="用户自评等级(0-4)，字段缺失按 0 处理",
+        description="用户自评等级(0-4)，字段缺失按 0 处理；不接受字符串/浮点/布尔",
     )
     evidence_level: Optional[str] = Field(None, description="能力证据状态")
 

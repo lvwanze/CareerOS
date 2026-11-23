@@ -158,6 +158,38 @@ def test_recommendation_rejects_negative_self_level():
     assert response.status_code == 422
 
 
+def test_recommendation_rejects_string_self_level():
+    """契约 §2.2 写的是 int，字符串 "3" 不该被宽松模式转成 3。
+
+    宽松模式（int）会把 "3" 解析成 3 并返回 200，调用方以为传对了，
+    实际是后端替他把类型猜了一遍；StrictInt 下直接 422。
+    """
+    response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": "3"})
+
+    assert response.status_code == 422
+    error = response.json()["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.self_level"
+    assert "必须是整数" in error["message"]
+
+
+def test_recommendation_rejects_float_self_level():
+    """3.0 会被宽松模式截成 3，截断本身就是静默改语义。"""
+    response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 3.0})
+
+    assert response.status_code == 422
+    error = response.json()["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.self_level"
+
+
+def test_recommendation_rejects_bool_self_level():
+    """true 会被宽松模式当成 1 级，是最隐蔽的一种误读。"""
+    response = _post_skill({"skill_id": "SKILL-ONET-2.A.1.a", "self_level": True})
+
+    assert response.status_code == 422
+    error = response.json()["data"]["errors"][0]
+    assert error["field"] == "profile.skills.0.self_level"
+
+
 def test_recommendation_accepts_boundary_self_levels():
     """0 与 4 是契约闭区间端点，必须放行。"""
     for level in (0, 4):
