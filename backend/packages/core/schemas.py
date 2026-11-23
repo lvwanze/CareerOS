@@ -9,7 +9,7 @@ class ApiResponse(BaseModel):
     message: str = Field(default="success", description="提示信息")
     data: Any = Field(description="业务数据")
     request_id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()),
+        default_factory=lambda: f"req_{uuid.uuid4().hex[:8]}",
         description="请求唯一标识"
     )
 
