@@ -25,12 +25,26 @@ class RecommendationResult {
   }
 }
 
+/// 把 JSON 里的字符串数组转成 List<String>。
+/// 字段缺失或类型不对时返回空列表，不要让界面因为少一个字段就崩。
+List<String> _stringList(dynamic raw) {
+  if (raw is! List) {
+    return <String>[];
+  }
+  return raw.map((item) => item.toString()).toList();
+}
+
 class CareerRecommendation {
   final String occupationId;
   final String occupationName;
   final String occupationNameZh;
   final double matchScore;
   final List<SkillGapResult> skillGaps;
+  // 下面四个字段后端一直在返回，之前没读，推荐理由就展示不出来。
+  final List<String> recommendationReasons;
+  final List<String> matchedSkills;
+  final List<String> skillsToImprove;
+  final List<String> skillsToVerify;
 
   const CareerRecommendation({
     required this.occupationId,
@@ -38,6 +52,10 @@ class CareerRecommendation {
     required this.occupationNameZh,
     required this.matchScore,
     required this.skillGaps,
+    required this.recommendationReasons,
+    required this.matchedSkills,
+    required this.skillsToImprove,
+    required this.skillsToVerify,
   });
 
   factory CareerRecommendation.fromJson(Map<String, dynamic> json) {
@@ -50,6 +68,10 @@ class CareerRecommendation {
       skillGaps: (json['skill_gaps'] as List<dynamic>)
           .map((item) => SkillGapResult.fromJson(item as Map<String, dynamic>))
           .toList(),
+      recommendationReasons: _stringList(json['recommendation_reasons']),
+      matchedSkills: _stringList(json['matched_skills']),
+      skillsToImprove: _stringList(json['skills_to_improve']),
+      skillsToVerify: _stringList(json['skills_to_verify']),
     );
   }
 }

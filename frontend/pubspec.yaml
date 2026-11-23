@@ -11,6 +11,8 @@ dependencies:
   http: ^1.1.0
   provider: ^6.0.5
   flutter_dotenv: ^5.2.1
+  # 技能进度本地持久化（发展树勾选状态、已填过的画像）
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
