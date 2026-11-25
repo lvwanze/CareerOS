@@ -19,7 +19,6 @@ import re
 import subprocess
 
 import pytest
-
 from reference.real_data import DATASET_ROOT, MANIFEST_PATH
 
 FILE_KEYS = ("occupations.csv", "skills.csv", "occupation_skills.csv")

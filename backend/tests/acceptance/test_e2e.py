@@ -5,7 +5,6 @@
 """
 
 import pytest
-
 from factories import base_profile, payload
 from reference.schemas import DevelopmentPath, Recommendation, UserProfile
 

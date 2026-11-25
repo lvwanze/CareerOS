@@ -6,8 +6,7 @@
 """
 
 import pytest
-
-from factories import base_profile, skill_level
+from factories import base_profile
 from reference.algorithm import classify_gap, match_profile
 
 

@@ -5,8 +5,6 @@
 """
 
 import pytest
-from pydantic import ValidationError
-
 from factories import (
     OCC_DATA_SCIENTISTS,
     SKILL_PROGRAMMING,
@@ -14,6 +12,7 @@ from factories import (
     minimal_profile,
     skill_level,
 )
+from pydantic import ValidationError
 from reference.schemas import (
     ApiResponse,
     DevelopmentNode,
