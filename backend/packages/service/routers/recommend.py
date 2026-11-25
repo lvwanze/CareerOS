@@ -14,7 +14,11 @@ from packages.core.schemas import (
 )
 from packages.training.inference import MODEL_VERSION, generate_recommendations
 
-from packages.service import knowledge
+# 相对导入（.. 即 packages.service）：写成 from packages.service import knowledge 时，
+# ruff 的 first-party 探测会把 packages.service 判成本地包、把 packages.training 判成三方包，
+# 两个导入因此被要求分组加空行；而这个探测依赖运行目录，CI 与本机给出相反结论。
+# 相对导入固定归入 local 组，不受探测影响，两边判断一致。
+from .. import knowledge
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 logger = logging.getLogger(__name__)
