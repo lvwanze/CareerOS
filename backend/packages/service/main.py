@@ -6,7 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from packages.core.schemas import ApiResponse
-from packages.service.routers.career_tree import deprecated_router as tree_legacy_router, router as tree_router
+from packages.service.routers.career_tree import deprecated_router as tree_legacy_router
+from packages.service.routers.career_tree import router as tree_router
 from packages.service.routers.health import router as health_router
 from packages.service.routers.occupations import router as occupations_router
 from packages.service.routers.recommend import router as recommend_router

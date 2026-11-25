@@ -26,7 +26,6 @@
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
-
 from packages.core.schemas import ApiResponse, CareerTreeResponse, CareerTreeResponseData
 from packages.service.knowledge import build_career_tree
 
