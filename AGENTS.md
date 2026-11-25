@@ -21,6 +21,7 @@ backend/
 └── tests/
     ├── acceptance/     六层 89 条验收测试（M5 交付）
     │   └── reference/  契约模型、参考算法、stub、真实数据加载
+    ├── architecture/   架构测试 4 条 + baseline.py 放行清单（M5 P1）
     └── test_*.py       后端原有单元与 smoke 测试
 frontend/               Flutter 三页 + models + services
 docs/                   契约、数据卡、模型卡、ADR、测试报告
@@ -39,26 +40,29 @@ pyproject.toml          ruff / mypy / pytest / coverage 统一配置
 
 ## 3. 构建与测试命令（与 ci.py 逐字一致）
 
-**唯一质量门——一条命令跑全部四步**（仓库根目录执行）：
+**唯一质量门——一条命令跑全部五步**（仓库根目录执行）：
 
 ```bash
 python scripts/ci.py
 ```
 
-它依次执行（可用 `python scripts/ci.py --skip-coverage` 只跑前三步）：
+它依次执行（可用 `python scripts/ci.py --skip-coverage` 只跑前四步）：
 
 | 步骤 | 实际命令（cwd=仓库根） | 配置位置 |
 |---|---|---|
 | 1 ruff 静态检查 | `python -m ruff check backend scripts/ci.py` | `pyproject.toml [tool.ruff]` |
 | 2 mypy 类型检查 | `python -m mypy backend/packages` | `pyproject.toml [tool.mypy]` |
-| 3 pytest 全量测试 | `python -m pytest backend/tests -q` | `pyproject.toml [tool.pytest]` |
-| 4 coverage 覆盖率 | `python -m coverage erase` → `python -m coverage run --source=backend/packages -m pytest backend/tests -q` → `python -m coverage report` | `pyproject.toml [tool.coverage]` |
+| 3 architecture 架构测试 | `python -m pytest backend/tests/architecture -q` | `backend/tests/architecture/` |
+| 4 pytest 全量测试 | `python -m pytest backend/tests -q` | `pyproject.toml [tool.pytest]` |
+| 5 coverage 覆盖率 | `python -m coverage erase` → `python -m coverage run --source=backend/packages -m pytest backend/tests -q` → `python -m coverage report` | `pyproject.toml [tool.coverage]` |
 
 任一步失败，`scripts/ci.py` 以非零码退出。本地与 GitHub Actions 调用同一个脚本，
 CI 的 workflow 见 `.github/workflows/ci.yml`（push/PR 到 main、feature、hotfix 分支触发）。
+架构测试采用「基线 + 显式放行清单」：现状越界在 `backend/tests/architecture/baseline.py`
+登记放行，新增越界即构建失败；详见 `docs/架构测试交付说明.md`。
 
-实测基线（2026-11-25，`d0ea59a`）：ruff PASS / mypy PASS / pytest **131 passed** /
-coverage 92% → 质量门全绿。
+实测基线（2026-11-25，基准 `453841f`）：ruff PASS / mypy PASS / architecture **4 passed** /
+pytest **135 passed** / coverage 92% → 质量门全绿。
 
 ## 4. 验收测试的两种模式（重要口径）
 
@@ -74,7 +78,7 @@ coverage 92% → 质量门全绿。
 
 ## 5. 提交前检查
 
-1. 在仓库根跑 `python scripts/ci.py`，确认四步全 PASS。
+1. 在仓库根跑 `python scripts/ci.py`，确认五步全 PASS。
 2. 不要改动他人文件（生产代码 `packages/*`、数据 `data/*`）；若 ruff/mypy 报他人存量问题，
    在 `pyproject.toml` 按文件精确豁免并注明归属，不要用 `--fix` 自动改他人代码。
 3. 报问题时附 commit hash，便于区分版本问题与环境问题。
