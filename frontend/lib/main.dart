@@ -1,11 +1,14 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'career_profile.dart';
 import 'questionnaire_page.dart';
 import 'recommendation_page.dart';
 import 'skill_tree_page.dart';
 
-void main() {
+Future<void> main() async {
+	WidgetsFlutterBinding.ensureInitialized();
+	await dotenv.load(fileName: '.env');
 	runApp(const MyApp());
 }
 
@@ -55,9 +58,9 @@ class MyApp extends StatelessWidget {
 						? settings.arguments! as CareerProfile
 						: const CareerProfile(
 								name: '访客',
-								targetRole: '移动开发',
+								targetRole: '',
 								experience: '刚刚起步',
-								skills: ['Flutter', 'Dart'],
+								skills: <ProfileSkill>[],
 								weeklyHours: 6,
 							);
 				return switch (settings.name) {
