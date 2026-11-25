@@ -22,7 +22,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from packages.service.main import app
-from packages.service.routers import occupations, recommend
+from packages.service import knowledge
+from packages.service.routers import occupations
 
 client = TestClient(app)
 
@@ -41,12 +42,12 @@ def read_mapping(filename: str, key_column: str) -> dict[str, str]:
 
 
 def test_skills_every_item_has_name_zh():
-    """35 条技能里 2 条零引用被排除，接口应返 33 条，每条都有中文名。"""
+    """35 条技能全量返回，每条都要有中文名（映射 35 条齐全）。"""
     response = client.get("/api/v1/skills")
 
     assert response.status_code == 200
     skills = response.json()["data"]
-    assert len(skills) == 33
+    assert len(skills) == 35
     assert all(skill["name_zh"] and skill["name_zh"].strip() for skill in skills)
     assert sum(1 for skill in skills if has_cjk(skill["name_zh"])) >= 30
 
@@ -63,16 +64,16 @@ def test_skills_name_zh_matches_mapping_file():
 def test_skills_fall_back_to_english_when_mapping_missing(monkeypatch, tmp_path):
     """映射文件不在时仍返 200，中文名回退英文名。
 
-    skills 的中文名由 recommend 模块提供，occupations 用自己的加载器，
-    两条路径都要测，所以两边一起置空。
+    /skills 的中文名现在由 knowledge.py 的加载器提供（技能列表、职业详情、
+    发展树共用一份），occupations 保留自己的加载器，两条路径都要测，所以两边一起置空。
     """
-    monkeypatch.setattr(recommend, "REFERENCE_DIR", tmp_path)
+    monkeypatch.setattr(knowledge, "REFERENCE_DIR", tmp_path)
     monkeypatch.setattr(occupations, "REFERENCE_DIR", tmp_path)
 
     skill_response = client.get("/api/v1/skills")
     assert skill_response.status_code == 200
     skills = skill_response.json()["data"]
-    assert len(skills) == 33
+    assert len(skills) == 35
     assert all(skill["name_zh"] == skill["name"] for skill in skills)
 
     occupation_response = client.get("/api/v1/occupations")
@@ -173,7 +174,7 @@ def test_name_zh_residue_values_fall_back_to_english(tmp_path, monkeypatch):
         "occupation_id,name_zh\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(recommend, "REFERENCE_DIR", tmp_path)
+    monkeypatch.setattr(knowledge, "REFERENCE_DIR", tmp_path)
     monkeypatch.setattr(occupations, "REFERENCE_DIR", tmp_path)
 
     skills = {item["skill_id"]: item for item in client.get("/api/v1/skills").json()["data"]}

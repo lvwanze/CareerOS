@@ -81,7 +81,7 @@ def test_unhandled_error_returns_envelope_500(monkeypatch):
     def boom():
         raise RuntimeError("模拟数据文件读失败")
 
-    monkeypatch.setattr(recommend, "_load_used_skills", boom)
+    monkeypatch.setattr(recommend, "_load_skill_catalog", boom)
     response = lenient_client.get("/api/v1/skills")
 
     assert response.status_code == 500
