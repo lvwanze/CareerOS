@@ -18,6 +18,10 @@
   * 设置环境变量 CAREEROS_ROOT=<后端仓库绝对路径>。
 检测到真实 app 后，接口/端到端用例自动切换到真实实现；
 若接口路径与契约不同，设置 CAREEROS_RECOMMEND_PATH=/实际路径。
+
+自检模式（清单 P0-2「关闭假绿灯」）：找不到真实 app 时，接口与端到端用例
+一律 skip，不再退回 reference/stub_app.py 产出通过状态。stub 仅作为参考实现
+保留在包内，不参与验收判定；数据/契约/算法层仍对真实交付数据执行。
 """
 
 import importlib
@@ -133,8 +137,8 @@ def pytest_configure(config):
             )
         else:
             reporter.write_line(
-                "[CareerOS 测试] 接口来源：参考 stub（自检模式）"
-                "—— 不代表真实系统已通过测试",
+                "[CareerOS 测试] 接口来源：未发现真实后端（自检模式）—— "
+                "接口/端到端用例将 skip，不产出通过状态（清单 P0-2 关闭假绿灯）",
                 yellow=True,
             )
 
@@ -149,12 +153,36 @@ def recommend_path():
     return API_RECOMMEND_PATH
 
 
+# 清单 P0-2「关闭假绿灯」：任何依赖 client fixture 的用例，其 app 来源在
+# 自检模式下都是 reference/stub_app.py（自己写的参考实现）。对着 stub 断言
+# 就是"自己测自己"，不能产出通过状态，必须 skip。
+# 用 fixture 依赖而非 marker 判定，才能覆盖 test_api / test_e2e / 以及
+# test_name_mapping 中那条调用 /api/v1/skills 的用例——凡依赖 client 者全中。
+# 数据版本/映射静态表/契约/算法/推荐层不依赖 client，仍对 M1 真实数据执行。
+_STUB_SKIP_REASON = (
+    "自检模式（未发现真实后端）：接口用例不对参考 stub 自证通过，"
+    "需接入真实 app 后重跑（清单 P0-2 关闭假绿灯）"
+)
+
+
+def pytest_collection_modifyitems(config, items):
+    """自检模式下，把所有依赖 client（stub 来源）的用例标为 skip，杜绝假绿灯。"""
+    if REAL_APP is not None:
+        return
+    skip_stub = pytest.mark.skip(reason=_STUB_SKIP_REASON)
+    for item in items:
+        if "client" in getattr(item, "fixturenames", ()):
+            item.add_marker(skip_stub)
+
+
 @pytest.fixture(scope="session")
 def app_under_test():
     if REAL_APP is not None:
         return REAL_APP
     from reference.stub_app import app
 
+    # stub 仅作为参考实现保留，接口用例已在 pytest_collection_modifyitems
+    # 中 skip，不会用它产出通过状态。
     return app
 
 
