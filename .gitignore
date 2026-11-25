@@ -1,6 +1,8 @@
 .venv/
 frontend/.dart_tool/
 frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
 __pycache__/
 *.pyc
 .env
@@ -18,6 +20,8 @@ backend/mlflow/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
 
 # 招聘市场样本（M2）：35,043 行 / 约 20MB。入库会让仓库从 1MB 涨到 21MB，
 # 且每次重跑数据都新增一份历史，故不入库；按 scripts/clean_recruitment.py

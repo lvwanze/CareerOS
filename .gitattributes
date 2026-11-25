@@ -1,0 +1,12 @@
+# 统一行尾：根治 Windows core.autocrlf=true 导致 CSV 被检出成 CRLF、
+# 与 manifest 登记的 LF sha256 对不上的假失败（组长清单 M1-P0-1 / 质量门 P0-1）。
+# 所有文本强制以 LF 存入工作区，CI(Linux) 与本地(Windows) 得到逐字节一致的文件。
+
+* text=auto eol=lf
+
+# 数据冻结包：sha256 校验依赖逐字节一致，必须 LF
+backend/data/**/*.csv text eol=lf
+backend/data/**/*.json text eol=lf
+
+# Windows 批处理脚本需要 CRLF 才能在 cmd 正常执行
+*.bat text eol=crlf

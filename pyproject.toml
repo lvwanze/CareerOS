@@ -1,0 +1,79 @@
+# CareerOS 唯一质量门配置（M5 测试与质量，方案 A1）
+#
+# 设计原则：
+#   1. 质量门必须真的能挡住问题，不能为了全绿把规则全关掉。
+#   2. 但项目里存在他人负责的存量代码，M5 不越界修改生产逻辑；
+#      对这部分用 per-file-ignores / overrides 精确豁免，并在注释里写明归属，
+#      等对应负责人认领后再收紧。新增/改动的代码一律按完整规则检查。
+#   3. 所有检查集中在 scripts/ci.py 一条命令，CI 与本地跑同一套。
+#
+# 运行：python scripts/ci.py   （在仓库根目录）
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [
+    ".venv",
+    "backend/.venv",
+    "**/__pycache__",
+    "backend/data",
+    "frontend",
+]
+
+[tool.ruff.lint]
+# E4/E7/E9 = pycodestyle 真错误（导入位置、语法）；F = Pyflakes（未定义名、未用导入）
+# I = isort 导入顺序。这组拦的是真实缺陷与可机械修复的规范问题，不是风格偏好。
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# 他人存量文件的历史问题：M5 不越界改他人代码，等负责人认领后删除对应豁免。
+# 注意这里豁免的只是 F401（未用导入）/I001（导入顺序）/F541（f-string）/E731（lambda），
+# 真正会挡住缺陷的 F821（未定义名）、F811（重名）、E9（语法错）对全部文件一视同仁。
+"backend/packages/core/schemas.py" = ["F401", "I001"]        # 未用导入/导入顺序（M3 契约模型）
+"backend/packages/service/routers/occupations.py" = ["I001"] # 导入顺序（M3 后端）
+"backend/packages/training/inference.py" = ["I001"]          # 导入顺序（M2 算法）
+"backend/scripts/analyze_lagou.py" = ["F541"]                # f-string 无占位符（M1 数据脚本）
+"backend/scripts/build_dataset.py" = ["E731"]                # lambda 赋值，改 def 有行为争议（M1 数据脚本）
+"backend/tests/test_api_contract.py" = ["I001"]              # 导入顺序（后端自测脚本）
+"backend/tests/test_health.py" = ["F401", "I001"]            # pytest 未用/导入顺序（后端自测脚本）
+"backend/tests/test_name_mapping.py" = ["F401", "I001"]      # pytest 未用/导入顺序（后端自测脚本）
+"backend/tests/test_recommend.py" = ["I001"]                 # 导入顺序（后端自测脚本）
+"backend/tests/test_response_envelope.py" = ["I001"]         # 导入顺序（后端自测脚本）
+"backend/tests/smoke_test.py" = ["F541"]                     # f-string 无占位符（后端自测脚本）
+
+[tool.mypy]
+# 生产代码类型检查。SQLAlchemy/Pandas 等无 stub 依赖一律忽略缺失导入。
+ignore_missing_imports = true
+explicit_package_bases = true
+mypy_path = "backend"
+follow_imports = "silent"
+no_error_summary = false
+show_error_codes = true
+warn_unused_configs = true
+
+# 存量类型债：这些是他人生产代码的类型标注缺失，M5 只做检查接入、不越界重构。
+# 负责人修好后应删除对应 override，让类型门真正覆盖到这些文件。
+[[tool.mypy.overrides]]
+module = [
+    "packages.core.schemas",
+    "packages.training.matcher",
+    "packages.service.routers.recommend",
+    "packages.service.routers.health",
+]
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+# 不在 addopts 里加 -q：ci.py 调用时自带 -q，叠加会变成 -qq 吞掉汇总行。
+
+[tool.coverage.run]
+source = ["backend/packages"]
+branch = true
+omit = ["**/__pycache__/*", "backend/packages/*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# 不设硬阈值：当前基线约 76%，先让覆盖率可见、可持续追踪，
+# 待测试补齐后再逐步提高 fail_under。

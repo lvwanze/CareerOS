@@ -1,0 +1,29 @@
+# CareerOS 提交作者归一（M5 / P1「统一提交作者与负责人对应关系」）
+#
+# 依据：README「三、团队分工（5人）」；组长《答辩待办清单》P1。
+# 作用：git log / git shortlog 用 %aN / %aE 显示时，把同一人的多个署名合并为一个。
+#       不改写历史提交对象，只改展示层（可安全随时增删行）。
+# 格式：规范姓名 <规范邮箱> 历史署名 <历史邮箱>
+# 验收：git log --format='%aN' | sort -u  → 恰好 5 个名字
+#
+# ---- M4 前端（组长）：署名 lvwanze 与 吕宛泽 同为 yizhilaobu@qq.com ----
+吕宛泽 <yizhilaobu@qq.com> lvwanze <yizhilaobu@qq.com>
+吕宛泽 <yizhilaobu@qq.com> 吕宛泽 <yizhilaobu@qq.com>
+
+# ---- M3 后端：署名 Chu Tian shu / Tianshu Chu 同为 xudai2222@gmail.com ----
+# 邮箱前缀 xudai 对应「旭/代」，提交内容以 FastAPI 后端与契约为主（M3 职责）。
+# 【待确认】该邮箱是否确为 README 的「代旭」——署名是拼音别名，非 README 姓名。
+代旭 <xudai2222@gmail.com> Chu Tian shu <xudai2222@gmail.com>
+代旭 <xudai2222@gmail.com> Tianshu Chu <xudai2222@gmail.com>
+
+# ---- 署名 Zzz（2638730400@qq.com）：用户确认对应「赵帝臣」 ----
+# 其提交以算法（matcher/inference/evidence_level/Model Card）为主，与 M2 职责一致。
+# 注意：zhaodichen@example.com（姓名拼音，提交同为算法）亦为赵帝臣，两者归一后合并显示。
+赵帝臣 <zhaodichen@example.com> Zzz <2638730400@qq.com>
+
+# ---- M5 测试（本人）：署名 Xue HongBo / xhb1030 同为 3388387152@qq.com ----
+薛宏博 <3388387152@qq.com> Xue HongBo <3388387152@qq.com>
+薛宏博 <3388387152@qq.com> xhb1030 <3388387152@qq.com>
+
+# ---- M2 算法：署名 zhaodichen（邮箱本身即姓名拼音）----
+赵帝臣 <zhaodichen@example.com> zhaodichen <zhaodichen@example.com>

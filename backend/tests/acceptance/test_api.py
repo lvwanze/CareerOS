@@ -10,7 +10,6 @@
 """
 
 import pytest
-
 from factories import (
     base_profile,
     empty_skills_profile,
@@ -70,27 +69,37 @@ def test_TC_API_03_top5_count_and_fields(client, recommend_path):
 
 @pytest.mark.api
 def test_TC_API_04_unified_response_fields(client, recommend_path):
-    """统一响应四字段齐全，request_id 非空。"""
+    """统一响应四字段齐全，request_id 为 req_ 前缀（api_spec.md 口径）。
+
+    代旭在 feat/api-contract-v2 将 request_id 由裸 UUID 统一为 req_ 前缀，
+    此断言锁定该口径防回归。已在 d0ea59a 真实后端单跑与全量中验证通过。
+    本用例依赖 client；自检模式（无真实 app）下由 conftest 统一 skip——
+    不再对参考 stub 自证通过（清单 P0-2 关闭假绿灯）。
+    """
     body = _json(client.post(recommend_path, json=payload()))
     for field in ("code", "message", "data", "request_id"):
         assert field in body
-    assert body["request_id"]
+    request_id = body["request_id"]
+    assert request_id, "request_id 不得为空"
+    assert request_id.startswith("req_"), (
+        f"request_id 须为 req_ 前缀（api_spec.md），实际为 {request_id!r}"
+    )
 
 
 # ---------------- 发展树结构（后端 2026-11-20 口径：责任归后端，可实测）----------------
 
 @pytest.mark.api
-def test_TC_API_05_development_paths_structure(client, recommend_path, api_mode):
+def test_TC_API_05_development_paths_structure(client, recommend_path):
     """发展路径由后端构树：每组与推荐职业对应，节点字段齐全、priority 从 1 递增。
 
     后端 2026-11-20 口径：发展树由后端返回（算法只给缺口/等级/权重，不构树），
     /recommendations 的 development_paths 已按此实现（gap>0、priority 从 1 递增），
-    故按 200 + 结构断言，不再当作兜底。自检 stub 的 development_paths 无 priority，
-    故自检模式退化为字段齐全检查（不强求 priority）。
+    故按 200 + 严格结构断言。此前自检 stub 无 priority 时曾退化为宽松检查，
+    现按清单 P0-2 关闭假绿灯：接口用例只在真实 app 下执行，stub 模式整条 skip，
+    不再保留对 stub 的降级断言。
     注意：节点 status 枚举契约(5 档)与代码 Literal(3 档)冲突待吕宛泽确认，
     此处只断言非空字符串，不写死枚举，避免写哪套都挂一边。
     """
-    strict = api_mode == "real"
     data = _body(client.post(recommend_path, json=payload()))
     paths = data.get("development_paths")
     assert isinstance(paths, list) and paths
@@ -106,9 +115,8 @@ def test_TC_API_05_development_paths_structure(client, recommend_path, api_mode)
                 assert field in node, f"发展节点缺字段 {field}"
             assert isinstance(node["status"], str) and node["status"]
             priorities.append(node.get("priority"))
-        if strict:
-            assert all(isinstance(p, int) for p in priorities)
-            assert priorities == list(range(1, len(nodes) + 1)), "priority 应从 1 递增"
+        assert all(isinstance(p, int) for p in priorities)
+        assert priorities == list(range(1, len(nodes) + 1)), "priority 应从 1 递增"
 
 
 @pytest.mark.api
