@@ -1,11 +1,15 @@
 name: debug-gate
 
-# 临时诊断用：把 scripts/ci.py 的完整输出写进 Job Summary（公开可读，不需要日志权限）。
+# 临时诊断用：把 scripts/ci.py 的完整输出发到 PR 评论（公开可读，不需要日志权限）。
 # 定位完失败点后删除本文件。
 on:
   push:
     branches: ["feat/api-contract-v2"]
   workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
 
 jobs:
   debug:
@@ -24,11 +28,19 @@ jobs:
         run: |
           set +e
           python scripts/ci.py > gate.log 2>&1
-          code=$?
+          echo "=== ci.py EXIT=$? ===" >> gate.log
           {
-            echo "### ci.py exit=$code"
+            echo "### ci.py 结果"
             echo '```'
             tail -n 200 gate.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 0
+      - name: Publish log to PR comment
+        run: |
+          python -c "import json;log=open('gate.log',encoding='utf-8',errors='replace').read()[-55000:];open('payload.json','w',encoding='utf-8').write(json.dumps({'body':'<!-- ci-debug -->**ci.py 完整输出**\n\n```\n'+log+'\n```'}))"
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/18/comments" \
+            -d @payload.json | head -c 200
