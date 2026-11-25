@@ -1,0 +1,20 @@
+# https://editorconfig.org
+# 统一各编辑器/IDE 的基础格式，避免同一字段在多人机器上被改出不同换行与缩进。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,md}]
+indent_size = 2
+
+[*.bat]
+end_of_line = crlf
+
+[Makefile]
+indent_style = tab

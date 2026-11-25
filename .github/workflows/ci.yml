@@ -1,0 +1,30 @@
+name: CI — 唯一质量门
+
+# 与本地 `python scripts/ci.py` 完全同一套检查，杜绝本地绿/CI 红。
+on:
+  push:
+    branches: [main, "feature/**", "hotfix/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+          python -m pip install ruff mypy coverage
+
+      - name: Run quality gate
+        run: python scripts/ci.py

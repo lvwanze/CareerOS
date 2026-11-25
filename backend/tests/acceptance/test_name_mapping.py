@@ -28,7 +28,6 @@ import csv
 import hashlib
 import io
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -36,7 +35,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from conftest import BACKEND_ROOT
 
 DATA_DIR = BACKEND_ROOT / "data" if BACKEND_ROOT else None
