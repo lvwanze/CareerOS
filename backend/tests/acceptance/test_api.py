@@ -70,11 +70,20 @@ def test_TC_API_03_top5_count_and_fields(client, recommend_path):
 
 @pytest.mark.api
 def test_TC_API_04_unified_response_fields(client, recommend_path):
-    """统一响应四字段齐全，request_id 非空。"""
+    """统一响应四字段齐全，request_id 为 req_ 前缀（api_spec.md 口径）。
+
+    代旭在 feat/api-contract-v2 将 request_id 由裸 UUID 统一为 req_ 前缀，
+    此断言锁定该口径防回归。自检 stub 已是 req_ 前缀；真实后端需该 PR
+    合入后才通过，旧 commit（如 d24e6f4）仍返回裸 UUID。
+    """
     body = _json(client.post(recommend_path, json=payload()))
     for field in ("code", "message", "data", "request_id"):
         assert field in body
-    assert body["request_id"]
+    request_id = body["request_id"]
+    assert request_id, "request_id 不得为空"
+    assert request_id.startswith("req_"), (
+        f"request_id 须为 req_ 前缀（api_spec.md），实际为 {request_id!r}"
+    )
 
 
 # ---------------- 发展树结构（后端 2026-11-20 口径：责任归后端，可实测）----------------
