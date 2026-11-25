@@ -1,3 +1,41 @@
+import 'models/evidence_level.dart';
+
+/// 单项技能的用户自评，字段与 data_contract.md 的 `skills[]` 一致。
+class ProfileSkill {
+  const ProfileSkill({
+    required this.skillId,
+    required this.name,
+    required this.selfLevel,
+    required this.evidenceLevel,
+  });
+
+  final String skillId;
+  final String name;
+  final int selfLevel;
+  final String evidenceLevel;
+
+  ProfileSkill copyWith({int? selfLevel, String? evidenceLevel}) => ProfileSkill(
+        skillId: skillId,
+        name: name,
+        selfLevel: selfLevel ?? this.selfLevel,
+        evidenceLevel: evidenceLevel ?? this.evidenceLevel,
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'skill_id': skillId,
+        'self_level': selfLevel,
+        'evidence_level': evidenceLevel,
+      };
+
+  factory ProfileSkill.fromJson(Map<String, dynamic> json) => ProfileSkill(
+        skillId: json['skill_id'] as String,
+        name: json['name'] as String,
+        selfLevel: json['self_level'] as int,
+        evidenceLevel: json['evidence_level'] as String? ??
+            EvidenceLevel.defaultLevel,
+      );
+}
+
 class CareerProfile {
   const CareerProfile({
     required this.name,
@@ -5,84 +43,46 @@ class CareerProfile {
     required this.experience,
     required this.skills,
     required this.weeklyHours,
+    this.occupationId,
   });
 
   final String name;
   final String targetRole;
   final String experience;
-  final List<String> skills;
+  final List<ProfileSkill> skills;
   final int weeklyHours;
+  final String? occupationId;
+
+  bool get hasSkills => skills.isNotEmpty;
+
+  CareerProfile copyWith({String? occupationId}) => CareerProfile(
+        name: name,
+        targetRole: targetRole,
+        experience: experience,
+        skills: skills,
+        weeklyHours: weeklyHours,
+        occupationId: occupationId ?? this.occupationId,
+      );
+
+  /// 推荐接口请求体里的 `profile`，字段顺序与 data_contract.md 对齐。
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'user_id': name,
+        'learning_stage': <String, dynamic>{'experience': experience},
+        'preferences': <String, dynamic>{'target_role': targetRole},
+        'skills': skills.map((skill) => skill.toJson()).toList(),
+        'constraints': <String, dynamic>{'weekly_hours': weeklyHours},
+        'career_goals': <String, dynamic>{'target_role': targetRole},
+      };
+
+  factory CareerProfile.fromJson(Map<String, dynamic> json) => CareerProfile(
+        name: json['name'] as String? ?? '',
+        targetRole: json['target_role'] as String? ?? '',
+        experience: json['experience'] as String? ?? '刚刚起步',
+        skills: (json['skills'] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(ProfileSkill.fromJson)
+            .toList(),
+        weeklyHours: json['weekly_hours'] as int? ?? 6,
+        occupationId: json['occupation_id'] as String?,
+      );
 }
-
-class CareerOpportunity {
-  const CareerOpportunity({
-    required this.title,
-    required this.category,
-    required this.description,
-    required this.skills,
-    required this.duration,
-    required this.icon,
-    required this.color,
-  });
-
-  final String title;
-  final String category;
-  final String description;
-  final List<String> skills;
-  final String duration;
-  final String icon;
-  final int color;
-
-  int matchScore(CareerProfile profile) {
-    final targetMatch = profile.targetRole == category ? 28 : 0;
-    final matchingSkills = profile.skills
-        .map((skill) => skill.toLowerCase())
-        .where((skill) => skills.any((item) => item.toLowerCase() == skill))
-        .length;
-    final experienceBonus = switch (profile.experience) {
-      '有项目经验' => 8,
-      '有工作经验' => 12,
-      _ => 0,
-    };
-    return (48 + targetMatch + matchingSkills * 6 + experienceBonus).clamp(0, 98);
-  }
-}
-
-const careerOpportunities = [
-  CareerOpportunity(
-    title: 'Flutter 应用开发',
-    category: '移动开发',
-    description: '从 Dart 基础到完整跨平台应用，构建可展示的作品集。',
-    skills: ['Flutter', 'Dart', '移动开发', 'Git'],
-    duration: '建议 8 周',
-    icon: 'phone_iphone',
-    color: 0xFF167D78,
-  ),
-  CareerOpportunity(
-    title: 'Python 后端工程',
-    category: '后端开发',
-    description: '掌握 API、数据库与服务部署，独立交付一个后端项目。',
-    skills: ['Python', 'SQL', 'API', 'Git'],
-    duration: '建议 10 周',
-    icon: 'dns',
-    color: 0xFFCB6847,
-  ),
-  CareerOpportunity(
-    title: '产品体验设计',
-    category: '产品设计',
-    description: '用研究、信息架构和原型设计，把想法转化为清晰体验。',
-    skills: ['Figma', '用户研究', '原型设计', '产品设计'],
-    duration: '建议 6 周',
-    icon: 'design_services',
-    color: 0xFF7E6C45,
-  ),
-  CareerOpportunity(
-    title: '数据分析与洞察',
-    category: '数据分析',
-    description: '用 SQL 与可视化分析真实数据，练习把发现讲清楚。',
-    skills: ['SQL', 'Python', '数据分析', 'Excel'],
-    duration: '建议 7 周',
-    icon: 'query_stats',
-    color: 0xFF547B50,
-  ),
-];
