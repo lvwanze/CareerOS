@@ -1,6 +1,6 @@
 name: debug-gate
 
-# 临时诊断用：把 scripts/ci.py 的完整输出发到 PR 评论（公开可读，不需要日志权限）。
+# 临时诊断用：逐步执行质量门的 4 个检查，把每步退出码与输出尾部发到 PR 评论。
 # 定位完失败点后删除本文件。
 on:
   push:
@@ -24,23 +24,48 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt
           python -m pip install ruff mypy coverage
-      - name: Run gate and capture
+      - name: Probe versions
+        run: |
+          {
+            echo "<!-- ci-debug -->"
+            echo "**版本**"
+            echo '```'
+            python -V
+            python -m ruff --version
+            python -m mypy --version
+            python -m pytest --version
+            python -m coverage --version | head -1
+            echo '```'
+          } >> probe.txt 2>&1
+      - name: Run checks one by one
         run: |
           set +e
-          python scripts/ci.py > gate.log 2>&1
-          echo "=== ci.py EXIT=$? ===" >> gate.log
           {
-            echo "### ci.py 结果"
+            echo "**逐步结果**"
             echo '```'
-            tail -n 200 gate.log
+            echo "### ruff"
+            python -m ruff check backend scripts/ci.py 2>&1 | tail -30
+            echo "RUFF_EXIT=${PIPESTATUS[0]}"
+            echo
+            echo "### mypy"
+            python -m mypy backend/packages 2>&1 | tail -30
+            echo "MYPY_EXIT=${PIPESTATUS[0]}"
+            echo
+            echo "### architecture"
+            python -m pytest backend/tests/architecture -q 2>&1 | tail -40
+            echo "ARCH_EXIT=${PIPESTATUS[0]}"
+            echo
+            echo "### pytest"
+            python -m pytest backend/tests -q 2>&1 | tail -60
+            echo "PYTEST_EXIT=${PIPESTATUS[0]}"
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 0
-      - name: Publish log to PR comment
+          } >> probe.txt 2>&1
+      - name: Publish to PR comment
         run: |
-          python -c "import json;log=open('gate.log',encoding='utf-8',errors='replace').read()[-55000:];open('payload.json','w',encoding='utf-8').write(json.dumps({'body':'<!-- ci-debug -->**ci.py 完整输出**\n\n```\n'+log+'\n```'}))"
+          head -c 60000 probe.txt > body.txt
+          python -c "import json;t=open('body.txt',encoding='utf-8',errors='replace').read();open('payload.json','w',encoding='utf-8').write(json.dumps({'body':t}))"
           curl -sS -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/issues/18/comments" \
-            -d @payload.json | head -c 200
+            -d @payload.json | head -c 300
