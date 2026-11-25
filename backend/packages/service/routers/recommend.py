@@ -12,8 +12,9 @@ from packages.core.schemas import (
 	RecommendationsResponseData,
 	SkillOption,
 )
-from packages.service import knowledge
 from packages.training.inference import MODEL_VERSION, generate_recommendations
+
+from packages.service import knowledge
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 logger = logging.getLogger(__name__)
