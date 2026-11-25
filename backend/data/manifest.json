@@ -212,8 +212,26 @@
     ],
     "decision": "保留并标注（2026-11-18 用户拍板），不从 skills.csv 移除；skills.csv 未改动，sha256 不变"
   },
-  "description_policy": "本期 skills.csv 的 description 全部留空：MVP 前端不做技能详情展示；赵帝臣在 model_card 注明。后续如需展示再从 O*NET 补列并重生成。",
-  "manifest_revision": "2026-11-18 v0.5.0：增量升级（version/source/collection_date/record_counts），保留 0.4.0 全部验收信息与 scope/孤立技能/描述策略/值域说明；三表数据未改动，sha256 不变。组长执行清单 step2(覆盖)/step3(改字段) 已作废。",
+  "description_policy": "冻结表 skills.csv 的 description 列仍全部留空（MVP 时不展示技能详情；赵帝臣在 model_card 注明）。2026-11-25 接口需要展示技能说明，但改冻结列要整体重新验收，故改由参考层提供：data/reference/skill_description.csv 保存 O*NET 31.0 Content Model Reference 原文，processed/ 三表一行未动、sha256 不变。",
+  "derived_skill_descriptions": {
+    "path": "data/reference/skill_description.csv",
+    "status": "maintained_reference",
+    "not_part_of_processed_contract_tables": true,
+    "generated_by": "scripts/build_skill_descriptions.py",
+    "generator_usage": "python scripts/build_skill_descriptions.py <path/to/content_model_reference.csv>",
+    "source": "O*NET 31.0 Content Model Reference",
+    "source_url": "https://www.onetcenter.org/dl_files/database/db_31_0_csv/content_model_reference.csv",
+    "join_key": "skills.csv.source_id = Content Model Reference.Element ID",
+    "columns": ["skill_id", "name_en", "description_en", "source", "note"],
+    "row_count": 35,
+    "sha256": "1e3abeecfd5c0e8cf2c03eb500356ca00570c3912ef45419c4f5f8f060935c34",
+    "encoding": "UTF-8 (no BOM)",
+    "line_ending": "LF",
+    "added_by": "代旭（M3 后端，接口保障）",
+    "added_at": "2026-11-25",
+    "note": "仅用于接口展示技能说明；冻结三表未改动。中文译名未做（不编造翻译），前端按原文英文展示。"
+  },
+  "manifest_revision": "2026-11-25 补记：新增 derived_skill_descriptions（参考层技能说明，生成脚本 scripts/build_skill_descriptions.py），冻结三表 28/35/492 与 sha256 均未变动。2026-11-18 v0.5.0：增量升级（version/source/collection_date/record_counts），保留 0.4.0 全部验收信息与 scope/孤立技能/描述策略/值域说明；三表数据未改动，sha256 不变。组长执行清单 step2(覆盖)/step3(改字段) 已作废。",
   "validation": {
     "status": "both_validated_frozen",
     "algorithm": {

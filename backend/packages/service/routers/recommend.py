@@ -1,10 +1,7 @@
-import csv
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from packages.core.name_text import clean_name
 from packages.core.schemas import (
 	ApiResponse,
 	DevelopmentNode,
@@ -15,97 +12,47 @@ from packages.core.schemas import (
 	RecommendationsResponseData,
 	SkillOption,
 )
+from packages.service import knowledge
 from packages.training.inference import MODEL_VERSION, generate_recommendations
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 logger = logging.getLogger(__name__)
-DATA_DIR = Path(__file__).resolve().parents[3] / "data"
-REFERENCE_DIR = DATA_DIR / "reference"
 
 
-def _load_name_mapping(filename: str, id_field: str) -> dict[str, str]:
-	"""读参考映射。文件缺失或某行没中文名时返回空表，调用方回退英文名，
-	不让服务因为少一个翻译文件就整体 500。清洗口径见 core.name_text。"""
-	path = REFERENCE_DIR / filename
-	if not path.is_file():
-		logger.warning("中文名映射缺失，回退英文名：%s", path)
-		return {}
-	table: dict[str, str] = {}
-	with path.open(encoding="utf-8-sig", newline="") as file:
-		for row in csv.DictReader(file):
-			key_value = clean_name(row.get(id_field))
-			name_zh = clean_name(row.get("name_zh"))
-			if key_value and name_zh:
-				table[key_value] = name_zh
-	return table
+def _load_skill_catalog(used_only: bool = False) -> list[SkillOption]:
+	"""技能列表。默认全量 35 条并逐条标注 used_in_kb；used_only=True 只给可选项。
 
-
-def _load_used_skills() -> list[SkillOption]:
-	skill_names_zh = _load_name_mapping("skill_name_zh.csv", "skill_id")
-	with (DATA_DIR / "processed" / "occupation_skills.csv").open(encoding="utf-8", newline="") as file:
-		used_skill_ids = {row["skill_id"] for row in csv.DictReader(file)}
-
-	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
-		return [
-			SkillOption(
-				skill_id=row["skill_id"],
-				name=row["name"],
-				name_zh=skill_names_zh.get(row["skill_id"], row["name"]),
-				category=row["category"],
-				used_in_kb=True,
-			)
-			for row in csv.DictReader(file)
-			if row["skill_id"] in used_skill_ids
-		]
-
-
-def _load_occupation_requirements() -> list[dict]:
-	skill_names = {}
-	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
-		skill_names = {row["skill_id"]: row["name"] for row in csv.DictReader(file)}
-	skill_names_zh = _load_name_mapping("skill_name_zh.csv", "skill_id")
-	occupation_names_zh = _load_name_mapping("occupation_name_zh.csv", "occupation_id")
-
-	occupations = {}
-	with (DATA_DIR / "processed" / "occupations.csv").open(encoding="utf-8", newline="") as file:
-		for row in csv.DictReader(file):
-			occupations[row["occupation_id"]] = {
-				"occupation_id": row["occupation_id"],
-				"occupation_name": row["name"],
-				"occupation_name_zh": occupation_names_zh.get(row["occupation_id"], row["name"]),
-				"skills": [],
-			}
-
-	with (DATA_DIR / "processed" / "occupation_skills.csv").open(encoding="utf-8", newline="") as file:
-		for row in csv.DictReader(file):
-			occupation = occupations.get(row["occupation_id"])
-			if occupation is not None:
-				occupation["skills"].append({
-					"skill_id": row["skill_id"],
-					"skill_name": skill_names.get(row["skill_id"], row["skill_id"]),
-					"skill_name_zh": skill_names_zh.get(
-						row["skill_id"], skill_names.get(row["skill_id"], row["skill_id"])
-					),
-					"importance": float(row["importance"]),
-					"required_level": int(row["required_level"]),
-				})
-
-	return list(occupations.values())
+	读表与中文名回退统一走 knowledge.py——技能列表、职业详情、发展树三处
+	各读各的，迟早会出现同一技能在三个接口里三种写法。
+	"""
+	return knowledge.load_skill_options(used_only=used_only)
 
 
 @router.get("/skills", response_model=ApiResponse)
-async def list_skills():
-	return ApiResponse(code=200, message="success", data=_load_used_skills())
+async def list_skills(used_only: bool = False):
+	"""可用技能列表，对齐 api_spec §3.5。
+
+	为什么默认返回 35 条而不是 33 条：used_in_kb 以前写死 True，两条零引用技能
+	（Equipment Selection、Installation）被直接过滤掉，字段恒真等于没有信息量，
+	前端也无从知道这两条为什么不在列表里。现在全量返回、逐条现算标注，
+	前端照旧按 used_in_kb=true 过滤即可还原成 33 条可选项。
+	"""
+	return ApiResponse(code=200, message="success", data=_load_skill_catalog(used_only=used_only))
+
 
 def _load_known_skill_ids() -> set[str]:
-	"""知识库技能表全量 ID。
+	"""知识库技能表全量 ID（35 条），不是只认被职业引用的 33 条。
 
-	口径以 skills.csv 的 35 条为准，而不是只认被职业引用的 33 条。零引用技能
-	（Equipment Selection、Installation）传进来不会得出错误结论，只是不贡献
-	分数；「技能表里根本没有」才是请求错误。前端可选项以 GET /api/v1/skills 为准。
+	零引用技能传进来不会得出错误结论，只是不贡献分数；「技能表里根本没有」
+	才是请求错误。前端可选项以 GET /api/v1/skills?used_only=true 为准。
 	"""
-	with (DATA_DIR / "processed" / "skills.csv").open(encoding="utf-8", newline="") as file:
-		return {row["skill_id"] for row in csv.DictReader(file)}
+	return knowledge.load_skill_ids()
+
+
+def _load_occupation_requirements() -> list[dict]:
+	"""推荐算法输入：每个职业 + 它的技能要求（含 IM 与要求等级）。"""
+	return knowledge.load_occupation_requirements()
+
 
 
 def _reject_unknown_skill_ids(profile: ProfileInput) -> JSONResponse | None:

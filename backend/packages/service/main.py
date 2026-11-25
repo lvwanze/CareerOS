@@ -5,12 +5,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from packages.core.schemas import (
-    ApiResponse,
-    CareerTreeResponse,
-    CareerTreeResponseData,
-    TreeNode,
-)
+from packages.core.schemas import ApiResponse
+from packages.service.routers.career_tree import deprecated_router as tree_legacy_router, router as tree_router
 from packages.service.routers.health import router as health_router
 from packages.service.routers.occupations import router as occupations_router
 from packages.service.routers.recommend import router as recommend_router
@@ -110,6 +106,9 @@ app.add_middleware(
 app.include_router(recommend_router)
 app.include_router(occupations_router)
 app.include_router(health_router)
+# 发展树：正式路径带 /api 前缀；旧路径 /v1/tree 保留但标弃用（见 routers/career_tree.py）
+app.include_router(tree_router, prefix="/api/v1")
+app.include_router(tree_legacy_router, prefix="/v1")
 
 
 @app.get("/", response_model=ApiResponse)
@@ -130,18 +129,13 @@ def show_route_index():
                 "POST /api/v1/recommendations",
                 "GET  /api/v1/occupations",
                 "GET  /api/v1/occupations/{occupation_id}",
-                "GET  /v1/tree/{occupation_id}",
+                "GET  /api/v1/tree/{occupation_id}",
+                "GET  /v1/tree/{occupation_id}（已弃用，请用 /api/v1/tree）",
             ],
         },
     )
 
 
-@app.get("/v1/tree/{occupation_id}", response_model=CareerTreeResponse)
-def get_career_tree(occupation_id: str):
-    # 模拟发展树数据
-    mock_nodes = [
-        TreeNode(node_id="n1", skill_id="SK002", skill_name="Python", status="mastered", description="已掌握基础语法"),
-        TreeNode(node_id="n2", skill_id="SK001", skill_name="SQL", status="in_progress", description="需要加强多表联查"),
-        TreeNode(node_id="n3", skill_id="SK003", skill_name="业务分析", status="in_progress", description="正在做实战项目")
-    ]
-    return CareerTreeResponse(data=CareerTreeResponseData(occupation_id=occupation_id, nodes=mock_nodes))
+# 发展树路由已迁到 routers/career_tree.py 并改为读真实数据，
+# 原位置的 mock 节点（Python / SQL / 业务分析写死 3 条）已删除。
+
