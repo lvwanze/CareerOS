@@ -5,6 +5,8 @@ class SkillOption {
   final String category;
   final bool usedInKb;
 
+  String get displayName => nameZh.trim().isEmpty ? name : nameZh;
+
   const SkillOption({
     required this.skillId,
     required this.name,

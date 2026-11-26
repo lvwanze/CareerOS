@@ -61,15 +61,23 @@ def test_recommendations_use_knowledge_base_and_return_top_five():
         )
 
 
-def test_skills_endpoint_excludes_unused_skills():
+def test_skills_endpoint_flags_unused_skills():
+    """词表 35 条全量返回，零引用技能靠 used_in_kb=false 标出来。
+
+    以前是过滤掉 + 字段写死 True：前端看不到那 2 条，也看不出这个字段在标什么。
+    现在口径是"都给你，自己按标记过滤"，used_only=true 仍可一步拿到 33 条。
+    """
     response = client.get("/api/v1/skills")
 
     assert response.status_code == 200
     skills = response.json()["data"]
     skill_ids = {skill["skill_id"] for skill in skills}
-    assert all(skill["used_in_kb"] for skill in skills)
-    assert "SKILL-ONET-2.B.3.c" not in skill_ids
-    assert "SKILL-ONET-2.B.3.d" not in skill_ids
+    assert len(skills) == 35
+    assert "SKILL-ONET-2.B.3.c" in skill_ids
+    assert "SKILL-ONET-2.B.3.d" in skill_ids
+
+    unused = {skill["skill_id"] for skill in skills if not skill["used_in_kb"]}
+    assert unused == {"SKILL-ONET-2.B.3.c", "SKILL-ONET-2.B.3.d"}
 
 
 def test_skills_endpoint_returns_chinese_names_from_reference_mapping():

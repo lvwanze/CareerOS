@@ -178,17 +178,63 @@ DevelopmentNode：
 | priority | int | 否 | 优先级 |
 | description | str | 否 | 学习建议 |
 
-节点状态第一阶段建议采用：
+节点状态（2026-11-25 统一，与 schemas.py、前端 DevelopmentStatus 对齐）：
 
 - not_started：未开始
-- learning：正在学习
-- needs_improvement：待加强
-- needs_verification：待验证
-- completed：已完成
+- in_progress：进行中
+- mastered：已掌握
+
+原文列过 learning / needs_improvement / needs_verification / completed 五个值，但代码与前端
+都只实现三个，且 Flutter 侧对未知枚举直接抛 ArgumentError，收到 learning 会整页崩。
+故契约收敛为上述三个值：learning → in_progress，completed → mastered；
+needs_improvement / needs_verification 属于能力状态（SkillGap.status），
+不是学习任务状态，不再混用在同一枚举里。
 
 已具备的能力与已完成的学习任务不是同一个概念，必要时应通过能力状态和任务状态分别表达。
 
-### 3.8 ApiResponse：统一接口响应
+### 3.8 CareerTree：发展树
+
+`GET /api/v1/tree/{occupation_id}` 的 data 结构。三层：职业根节点 → 技能类别 → 技能。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| occupation_id | str | 是 | 职业 ID |
+| occupation_name | str | 是 | 职业英文名 |
+| occupation_name_zh | str | 是 | 职业中文名，缺失回退英文名 |
+| root_id | str | 是 | 根节点 ID |
+| node_count | int | 是 | 节点总数（含根与类别节点） |
+| max_depth | int | 是 | 最大层级，当前为 2 |
+| nodes | list | 是 | 节点数组 |
+
+TreeNode：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| node_id | str | 是 | 节点 ID；技能节点为 `{occupation_id}-{skill_id}` |
+| parent_id | str/null | 是 | 父节点 ID，根节点为 null |
+| node_type | str | 是 | occupation / category / skill |
+| level | int | 是 | 0 根、1 类别、2 技能 |
+| order | int | 是 | 同一父节点下从 1 连续递增，根为 0 |
+| priority | int | 是 | 全树学习顺序，从 1 递增；根与类别为 0 |
+| skill_id | str/null | 是 | 仅技能节点有值 |
+| skill_name | str | 是 | 显示名，技能节点为中文名（缺失回退英文） |
+| name_en | str/null | 否 | 英文原名，便于与 O*NET 对照 |
+| description | str | 是 | 技能节点为 O*NET 原文说明；类别节点为分组说明 |
+| status | str | 是 | not_started / in_progress / mastered |
+| category | str/null | 否 | essential / transferable；根节点为职业类别 |
+| required_level | int/null | 否 | 0~4，仅技能节点 |
+| importance | float/null | 否 | O*NET 原始 IM 1~5，仅技能节点 |
+
+约束：只有一个根（类型 occupation、level 0）；除根外 parent_id 必须指向本树中存在的节点；
+level 等于父节点 +1；父子类型必须是 occupation→category→skill（技能节点是叶子）；
+同级 order 连续；任何节点沿 parent_id 上溯可达根（无环）。
+技能节点数量等于 `occupation_skills.csv` 中该职业的关联记录数。
+
+注意 `skill_id` 是"字段必填、值可为 null"：根与类别节点必须是 null，
+前端解析时要按可空处理（Dart 用 `json['skill_id'] as String? ?? ''`），
+否则遇到根节点会抛类型错误。
+
+### 3.9 ApiResponse：统一接口响应
 
 | 字段 | 类型 | 说明 |
 |---|---|---|

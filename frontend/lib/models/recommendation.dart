@@ -30,6 +30,10 @@ class CareerRecommendation {
   final String occupationName;
   final String occupationNameZh;
   final double matchScore;
+  final List<String> recommendationReasons;
+  final List<String> matchedSkills;
+  final List<String> skillsToImprove;
+  final List<String> skillsToVerify;
   final List<SkillGapResult> skillGaps;
 
   const CareerRecommendation({
@@ -37,6 +41,10 @@ class CareerRecommendation {
     required this.occupationName,
     required this.occupationNameZh,
     required this.matchScore,
+    required this.recommendationReasons,
+    required this.matchedSkills,
+    required this.skillsToImprove,
+    required this.skillsToVerify,
     required this.skillGaps,
   });
 
@@ -47,6 +55,11 @@ class CareerRecommendation {
         occupationNameZh: json['occupation_name_zh'] as String? ??
           json['occupation_name'] as String,
       matchScore: (json['match_score'] as num).toDouble(),
+      recommendationReasons: (json['recommendation_reasons'] as List<dynamic>)
+          .cast<String>(),
+      matchedSkills: (json['matched_skills'] as List<dynamic>).cast<String>(),
+      skillsToImprove: (json['skills_to_improve'] as List<dynamic>).cast<String>(),
+      skillsToVerify: (json['skills_to_verify'] as List<dynamic>).cast<String>(),
       skillGaps: (json['skill_gaps'] as List<dynamic>)
           .map((item) => SkillGapResult.fromJson(item as Map<String, dynamic>))
           .toList(),

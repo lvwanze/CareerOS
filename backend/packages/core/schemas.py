@@ -34,7 +34,14 @@ class SkillOption(BaseModel):
     name: str
     name_zh: str = Field(default="", description="中文名；映射缺失时与 name 相同（英文回退）")
     category: str
-    used_in_kb: bool
+    used_in_kb: bool = Field(
+        ...,
+        description="是否至少关联一个职业；由 occupation_skills.csv 现算，不是常量",
+    )
+    description: str = Field(
+        default="",
+        description="技能说明（O*NET 31.0 原文英文，取自 reference/skill_description.csv）",
+    )
 
 
 # 职业推荐模型（完全对齐 data_contract.md §3.5）
@@ -131,22 +138,53 @@ class RecommendResponse(ApiResponse):
     data: RecommendResponseData
 
 
-# 发展路径节点模型
+# 发展树节点模型
 class TreeNode(BaseModel):
+    """发展树节点：职业根节点 → 技能类别 → 技能，共三层。
+
+    原来只有 node_id/skill_id/skill_name/description/status 五个字段，节点之间
+    没有父子关系，前端拿到 3 条平铺记录只能当列表渲染，不构成"树"。
+    这里补 parent_id + level + order，并把 kind 显式写出来：前端可以用
+    node_type 决定画成根、分组标题还是技能条目，不必靠 skill_id 是否为空去猜。
+    """
+
     node_id: str = Field(..., description="节点唯一ID")
-    skill_id: str = Field(..., description="技能唯一ID")
-    skill_name: str = Field(..., description="技能名称")
-    description: str = Field(..., description="节点学习建议或说明")
+    parent_id: Optional[str] = Field(None, description="父节点ID；根节点为 null")
+    node_type: Literal["occupation", "category", "skill"] = Field(
+        ..., description="节点类型：职业根/技能类别/技能"
+    )
+    level: int = Field(..., ge=0, le=2, description="层级：0 根、1 类别、2 技能")
+    order: int = Field(..., ge=0, description="同一父节点下的排序，从 1 连续递增；根为 0")
+    skill_id: Optional[str] = Field(None, description="技能唯一ID；根与类别节点为 null")
+    skill_name: str = Field(..., description="显示名（技能节点为中文名，缺失回退英文）")
+    name_en: Optional[str] = Field(None, description="英文原名，便于和 O*NET 对照")
+    description: str = Field(..., description="节点说明：技能取 O*NET 原文，类别取分组说明")
     status: Literal["not_started", "in_progress", "mastered"] = Field(
-        ...,
-        description="节点状态：未开始/进行中/已掌握"
+        ..., description="节点状态：未开始/进行中/已掌握（本接口统一 not_started，进度在前端）"
+    )
+    priority: int = Field(
+        ..., ge=0, description="全树学习顺序，从 1 递增；根与类别节点为 0"
+    )
+    category: Optional[str] = Field(
+        None, description="技能类别：essential / transferable；根节点为职业类别"
+    )
+    required_level: Optional[int] = Field(
+        None, ge=0, le=4, description="职业要求等级(0-4)；非技能节点为 null"
+    )
+    importance: Optional[float] = Field(
+        None, ge=1, le=5, description="O*NET 原始 IM 重要程度(1-5)；非技能节点为 null"
     )
 
 
 # 发展路径响应业务数据
 class CareerTreeResponseData(BaseModel):
     occupation_id: str = Field(..., description="当前发展树对应的职业ID")
-    nodes: List[TreeNode] = Field(..., description="树的节点列表")
+    occupation_name: str = Field(..., description="职业英文名")
+    occupation_name_zh: str = Field(..., description="职业中文名，缺失回退英文名")
+    root_id: str = Field(..., description="根节点ID，便于前端直接定位树根")
+    node_count: int = Field(..., description="节点总数（含根与类别节点）")
+    max_depth: int = Field(..., description="最大层级，当前为 2")
+    nodes: List[TreeNode] = Field(..., description="树的节点列表，按层级/order 升序")
 
 
 # 发展路径响应模型
