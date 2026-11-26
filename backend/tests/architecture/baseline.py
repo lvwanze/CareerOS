@@ -62,9 +62,11 @@ PROD_PATH_HACKS: list[Allowance] = []
 # ---------------------------------------------------------------------------
 # 约束 3：数据目录推算不散落（集中到统一 data 入口）
 # ---------------------------------------------------------------------------
-# 现状：三个 service router 各算一次 parents[3]/data，training 算 parents[2]。
-# 新清单 5.2 指出缺一个 data/index 入口层（归 M2/M3）。单次提交内 M5 不重构
-# 他人代码，故登记这 4 处为基线；新增第 5 处即失败。
+# 现状：service 侧 health.py / occupations.py 各算一次 parents[3]/data，
+# knowledge.py 算一次 parents[2]/data（2026-11-25 PR#18 前的第 3 处在
+# routers/recommend.py，随数据读取层抽取迁入，净增 0），training/matcher.py
+# 算一次 parents[2]。新清单 5.2 指出缺一个 data/index 入口层（归 M2/M3）。
+# 单次提交内 M5 不重构他人代码，故登记这 4 处为基线；新增第 5 处即失败。
 DATA_DIR_RESOLUTION = [
     Allowance(
         rule="data_dir_not_scattered",
@@ -80,9 +82,12 @@ DATA_DIR_RESOLUTION = [
     ),
     Allowance(
         rule="data_dir_not_scattered",
-        target="packages/service/routers/recommend.py:DATA_DIR=parents[3]",
-        reason="service router 自算数据目录，存量实现",
-        basis="新清单 6.3 M5 P1 / 5.2；M3 待收敛 data 入口层",
+        target="packages/service/knowledge.py:DATA_DIR=parents[2]",
+        reason=(
+            "service 共享数据读取层自算数据目录，存量基线的第 3 处；"
+            "2026-11-25 PR#18 由 routers/recommend.py 迁入本模块，净增 0 处"
+        ),
+        basis="新清单 6.3 M5 P1 / 5.2；M3 待收敛 data 入口层；PR#18 代旭与 M5 约定同步",
     ),
     Allowance(
         rule="data_dir_not_scattered",

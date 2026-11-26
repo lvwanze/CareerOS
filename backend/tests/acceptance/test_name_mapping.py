@@ -232,17 +232,58 @@ def test_TC_MAP_07_manifest_metadata_and_hashes():
 @pytest.mark.name_mapping
 @pytest.mark.api
 def test_TC_MAP_08_api_returns_chinese_names(client, api_mode):
-    """后端加载映射：技能列表与推荐结果返回 name_zh，走真实后端才验证。"""
+    """后端加载映射与技能新字段：中文名、35 条全量、used_in_kb 现算、description 对齐。
+
+    2026-11-25 代旭 PR#18 改了 /api/v1/skills 的口径，本用例在原 name_zh
+    校验上加深断言（仍是一条，不涨用例数）：
+      - 默认全量 35 条，每条 name_zh 非空；
+      - used_in_kb 现算：33 true / 2 false，false 恰为两条零引用技能；
+      - used_only=true 只返 33 条可选项；
+      - description 逐条等于参考表 skill_description.csv（不写“非空就行”）。
+    注意：这些断言需 PR#18 合并后的真实后端；合并前在本地旧后端上会失败，
+    属新口径先于实现落地，不是回归。自检模式由 conftest 统一 skip。
+    """
     if api_mode != "real":
         pytest.skip("参考 stub 未实现 name_zh，此用例仅在真实后端接入后校验")
 
     skills_resp = client.get("/api/v1/skills")
     assert skills_resp.status_code == 200, skills_resp.text
     skills = skills_resp.json()["data"]
-    assert skills, "技能列表为空"
+    assert isinstance(skills, list) and len(skills) == 35, (
+        f"技能列表应全量 35 条，实际 {len(skills)} 条"
+    )
     assert all("name_zh" in item and item["name_zh"] for item in skills), (
         "技能列表存在缺失 name_zh 的条目"
     )
+
+    # used_in_kb：由关联表现算，不能恒为 True
+    used = {s["skill_id"] for s in skills if s.get("used_in_kb")}
+    unused = {s["skill_id"] for s in skills if not s.get("used_in_kb")}
+    assert len(used) == 33 and len(unused) == 2, (
+        f"used_in_kb 应为 33 true / 2 false，实际 {len(used)}/{len(unused)}"
+    )
+    relations = set()
+    with io.open(PROCESSED_DIR / "occupation_skills.csv", encoding="utf-8-sig", newline="") as fh:
+        for row in csv.DictReader(fh):
+            relations.add(row["skill_id"])
+    assert used == relations, "used_in_kb=true 集合应等于关联表出现过的技能"
+
+    # description：逐条对参考表，防止占位符或串列
+    desc_path = REFERENCE_DIR / "skill_description.csv"
+    assert desc_path.is_file(), f"缺少技能说明参考表：{desc_path}"
+    with io.open(desc_path, encoding="utf-8-sig", newline="") as fh:
+        expected_desc = {row["skill_id"]: row["description_en"] for row in csv.DictReader(fh)}
+    for skill in skills:
+        assert "description" in skill, f"{skill['skill_id']} 缺 description 字段"
+        assert skill["description"] == expected_desc[skill["skill_id"]], (
+            f"{skill['skill_id']} 的 description 与参考表不一致"
+        )
+
+    # used_only=true 一步拿到 33 条可选项
+    only_resp = client.get("/api/v1/skills?used_only=true")
+    assert only_resp.status_code == 200, only_resp.text
+    only_skills = only_resp.json()["data"]
+    assert len(only_skills) == 33 and all(s["used_in_kb"] for s in only_skills)
 
     from factories import base_profile, payload
     rec_resp = client.post("/api/v1/recommendations", json=payload(base_profile()))

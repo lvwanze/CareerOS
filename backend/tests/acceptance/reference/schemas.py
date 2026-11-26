@@ -16,9 +16,11 @@ from pydantic import BaseModel, Field, StrictInt, ValidationError
 SkillLevel = Literal[0, 1, 2, 3, 4]
 
 GapStatus = Literal["mastered", "needs_improvement", "needs_verification"]
-NodeStatus = Literal[
-    "not_started", "learning", "needs_improvement", "needs_verification", "completed"
-]
+# 发展任务状态：2026-11-25 契约 §3.7 收敛为 3 档（与 schemas.py、Flutter 一致）。
+# 旧值 learning / needs_improvement / needs_verification / completed 已废弃：
+# 前两者语义并入 in_progress / mastered，后两者属 SkillGap.status（能力状态），
+# 不是学习任务状态；Flutter 对未知枚举会抛 ArgumentError，不能再留在契约里。
+NodeStatus = Literal["not_started", "in_progress", "mastered"]
 
 
 def error_locations(exc: ValidationError):

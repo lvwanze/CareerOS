@@ -32,11 +32,12 @@ python -m pytest tests/acceptance -q
 python -m pytest tests -q
 ```
 
-## 三、实测结果（基准 main `d925839`，2026-11-24）
+## 三、实测结果（基准 main `a36acd6`，2026-11-26）
 
 ```
 python -m pytest tests/acceptance -q   →  89 passed / 0 failed
-python -m pytest tests -q              →  131 passed   （含后端原有测试）
+python -m pytest backend/tests -q      →  144 passed  （含后端原有测试 + 4 条架构测试）
+python scripts/ci.py                   →  五步全绿（ruff / mypy / architecture / pytest / coverage 92%）
 ```
 
 自检模式（无后端）：59 passed / 30 skipped（P0-2 关闭假绿灯后，接口用例全部 skip）。
@@ -47,7 +48,11 @@ python -m pytest tests -q              →  131 passed   （含后端原有测�
 
 - `self_level` 必须是真整数：字符串 `"3"`、浮点 `3.0`、布尔 `true` 都返回 422（TC-EX-06，同一用例内循环，不拆条数）。
 - `request_id` 必须是 `req_` 前缀（TC-API-04），对齐 `api_spec.md`。
-- 节点 `status` 三套口径并存（契约 5 档 / 代码 3 档 / 前端两态），当前只断言非空字符串，统一后再收紧。
+- 节点 `status` 已收口为 3 档（`not_started`/`in_progress`/`mastered`）：2026-11-25 代旭 PR#18 把 `data_contract.md §3.7` 从旧 5 档改为 3 档，与 `schemas.py` 和 Flutter 枚举一致。TC-DATA-12 与 TC-API-05/06 按 3 档断言；注意旧 5 档语义中 `needs_improvement`/`needs_verification` 属 SkillGap（能力状态），不与任务状态混用。
+- 技能列表口径（PR#18）：默认全量 35 条，`used_in_kb` 现算（33 true / 2 false），`description` 逐条对 `reference/skill_description.csv`，`?used_only=true` 返 33 条。TC-MAP-08 已覆盖。
+- 发展树口径（PR#18）：`/api/v1/tree/{id}` 为正式路径，旧 `/v1/tree/{id}` 保留并带 `Deprecation` 头；未知职业 404，不再返回 mock。TC-API-06 已按真实结构断言。
 - `user_id` 必填、`goal_description` 上限 2000 字：规则已定、代码 pending，相关用例暂按兜底断言，落地后收紧。
+
+> **口径升级已复测**：TC-API-06 / TC-MAP-08 / TC-DATA-12 按 PR#18 新口径升级的断言，已于 2026-11-26 在合入 PR#18 的 `a36acd6` 真实后端上复跑通过（单跑 `3 passed`，验收套件 `89 passed / 0 skipped`）。自检模式因无真实 app 仍一律 skip，不对 stub 自证通过（P0-2）。
 
 维护与决策理由见同目录外的《测试侧决策记录.md》。

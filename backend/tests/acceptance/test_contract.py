@@ -137,14 +137,19 @@ def test_TC_DATA_11_gap_status_enum():
 
 @pytest.mark.contract
 def test_TC_DATA_12_node_status_enum():
-    """发展节点状态只接受契约规定的五个值。"""
+    """发展节点状态只接受契约 §3.7 收敛后的 3 档。
+
+    2026-11-25 口径变更：旧的 learning / needs_improvement / needs_verification /
+    completed 四值已废弃（能力状态与任务状态混用，Flutter 遇未知枚举会崩），
+    本用例由 5 档改判 3 档，并与后端 schemas.py、前端 DevelopmentStatus 对齐。
+    非法值拒绝同时覆盖一个旧值，防止旧枚举回流。
+    """
     base = {"node_id": "n1", "skill_id": SKILL_PROGRAMMING, "name": "Programming"}
-    for status in (
-        "not_started", "learning", "needs_improvement", "needs_verification", "completed"
-    ):
+    for status in ("not_started", "in_progress", "mastered"):
         assert DevelopmentNode(**base, status=status).status == status
-    with pytest.raises(ValidationError):
-        DevelopmentNode(**base, status="unknown")
+    for old_or_unknown in ("learning", "completed", "needs_verification", "unknown"):
+        with pytest.raises(ValidationError):
+            DevelopmentNode(**base, status=old_or_unknown)
 
 
 @pytest.mark.contract
