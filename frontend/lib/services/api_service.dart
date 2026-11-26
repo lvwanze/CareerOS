@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:frontend/models/career_tree.dart';
 import 'package:frontend/models/occupation_option.dart';
 import 'package:frontend/models/recommendation.dart';
 import 'package:frontend/models/skill_option.dart';
@@ -83,8 +84,23 @@ class ApiService {
         .toList();
   }
 
-  static Future<List<OccupationOption>> fetchOccupations() async {
-    final decoded = await _requestJson(Uri.parse('$baseUrl/api/v1/occupations'));
+  /// `GET /api/v1/tree/{occupation_id}`：该职业的三层发展树（api_spec §3.6）。
+  ///
+  /// 职业 ID 写错时后端返 404 + 统一信封，`_requestJson` 已把它转成
+  /// [ApiException]（message 即「职业不存在：xxx」），不会退化成空树，
+  /// 所以界面能区分「ID 错了」和「这个职业没要求」。
+  static Future<CareerTree> fetchCareerTree(String occupationId) async {
+    final decoded = await _requestJson(
+      Uri.parse('$baseUrl/api/v1/tree/${Uri.encodeComponent(occupationId)}'),
+    );
+    final rawData = decoded['data'];
+    if (rawData is! Map<String, dynamic>) {
+      throw ApiException('发展树数据格式错误');
+    }
+    return CareerTree.fromJson(rawData);
+  }
+
+  static Future<List<OccupationOption>> fetchOccupations() async {    final decoded = await _requestJson(Uri.parse('$baseUrl/api/v1/occupations'));
     final rawData = decoded['data'];
     if (rawData is! Map<String, dynamic> || rawData['items'] is! List) {
       throw ApiException('职业数据格式错误');

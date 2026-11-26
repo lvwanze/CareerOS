@@ -5,7 +5,6 @@ import 'career_profile.dart';
 import 'models/recommendation.dart';
 import 'services/api_service.dart';
 import 'services/profile_storage.dart';
-import 'services/recommendation_store.dart';
 
 class RecommendationPage extends StatefulWidget {
 	const RecommendationPage({required this.profile, super.key});
@@ -45,8 +44,7 @@ class _RecommendationPageState extends State<RecommendationPage> {
 		await _storage?.saveOccupation(occupationId, saved: saved);
 	}
 
-	void _openPath(CareerRecommendation item, RecommendationResult result) {
-		RecommendationStore.instance.cache(result);
+	void _openPath(CareerRecommendation item) {
 		Navigator.pushNamed(
 			context,
 			'/skill-tree',
@@ -133,7 +131,7 @@ class _RecommendationPageState extends State<RecommendationPage> {
 									saved: _saved.contains(entry.value.occupationId),
 									onSaveChanged: (saved) =>
 											_toggleSaved(entry.value.occupationId, saved),
-									onOpenPath: () => _openPath(entry.value, result),
+									onOpenPath: () => _openPath(entry.value),
 								)),
 					],
 				),
