@@ -33,6 +33,8 @@
     否则脚本会产出不同的表。校验通过后运行 `python scripts/build_dataset.py`，
     产出三表应与 backend/data/manifest.json 登记的 sha256 逐字节一致
     （2026-11-26 实测复现：occupations 087a2484… / skills 59ca8b64… / relations 00044bd0…）。
+    预计耗时：脚本处理部分约 1 秒（11-26 连续 5 次实测：稳定 1.2 秒、首次冷启动 4.6 秒）；
+    四步全程的主要耗时在下载 O*NET 原始 CSV（网络条件决定），生成与核对均秒级完成。
 """
 
 import csv
