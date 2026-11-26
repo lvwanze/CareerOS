@@ -37,7 +37,7 @@ def test_ready_reports_real_row_counts():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ready"
-    assert body["engine"] == "stub"
+    assert body["engine"] == "real"
     assert body["contract_version"] == "V1.0"
     assert body["data"]["occupations"] == 28
     assert body["data"]["skills"] == 35

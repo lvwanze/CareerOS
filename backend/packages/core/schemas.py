@@ -2,6 +2,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing import List, Literal, Any, ForwardRef, Optional
 import uuid
 
+from packages.core.request_context import current_request_id
+
 
 # 统一API响应结构
 class ApiResponse(BaseModel):
@@ -9,8 +11,12 @@ class ApiResponse(BaseModel):
     message: str = Field(default="success", description="提示信息")
     data: Any = Field(description="业务数据")
     request_id: str = Field(
-        default_factory=lambda: f"req_{uuid.uuid4().hex[:8]}",
-        description="请求唯一标识"
+        # 优先取中间件写进 contextvar 的 id，保证「响应体、响应头、日志」三处一致；
+        # 脱离请求上下文（脚本里直接构造、单元测试）时回退为随机生成，行为不变。
+        default_factory=lambda: current_request_id()
+        if current_request_id() != "-"
+        else f"req_{uuid.uuid4().hex[:8]}",
+        description="请求唯一标识",
     )
 
 

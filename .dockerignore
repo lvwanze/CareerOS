@@ -1,0 +1,36 @@
+# 构建上下文排除项（清单 M3 P0-4）
+#
+# 不加这个文件时，docker build 会把 .venv 一起打包成上下文：
+# 本项目 .venv 已装 pandas/numpy，上下文能到几百 MB 甚至 1 GB+，
+# 表现是 "Sending build context" 卡几分钟然后超时。这是最容易踩的坑。
+
+# 虚拟环境（本地与 CI 都不需要，镜像里现装）
+.venv
+backend/.venv
+venv
+env
+
+# 版本库与元数据（镜像里没 git，拷进去只是变慢）
+.git
+.gitignore
+.gitattributes
+.github
+
+# 前端不进这个镜像：单服务只跑 API，页面由 Flutter 端独立构建
+frontend
+
+# 缓存与编译器产物
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# 文档与测试不进运行镜像（测试要进 CI，不靠镜像）
+docs
+backend/tests
+
+# 本地临时文件
+*.log
+body.json
+req.json

@@ -198,6 +198,8 @@ GET /api/v1/skills
   也能看到"这两条为什么不在我这边"。
 - `description` 不在冻结表 `skills.csv` 里补（该表已冻结，description 列按 manifest
   的 description_policy 留空），改由参考层提供，与中文名映射同一种做法。
+- 中文技能说明不在本期范围（2026-11-26 组内确认）：该字段仅用于详情展示、不参与匹配
+  打分，翻译需术语审校与数据责任人，改由前端用 `name_zh` 承担中文呈现。
 
 ### 3.6 发展树
 
@@ -244,10 +246,14 @@ GET /api/v1/tree/{occupation_id}
 
 旧路径：
 
-- `GET /v1/tree/{occupation_id}` 保留可用（缺 `/api` 前缀的历史写法，前端
-  `api_service.dart` 仍在请求），响应体与正式路径一致，响应头带
-  `Deprecation: true` 与 `Link: </api/v1/tree/{id}>; rel="successor-version"`；
+- `GET /v1/tree/{occupation_id}` 保留可用（缺 `/api` 前缀的历史写法），响应体与正式路径
+  一致，响应头带 `Deprecation: true` 与 `Link: </api/v1/tree/{id}>; rel="successor-version"`；
   下个版本摘除。
+- 标注原因与现状（2026-11-26 复核）：该路径是历史遗留，**前端已不再调用**
+  （`frontend/lib/services/api_service.dart` 现只请求 `/api/v1/recommendations`、
+  `/api/v1/skills`、`/api/v1/occupations`），保留一个版本仅为兼容早期调用方。
+  本路径 `include_in_schema=False`，不进 `/openapi.json` 与 `docs/interfaces.md`，
+  避免前端照着旧路径写代码。
 
 ### 3.7 服务索引
 

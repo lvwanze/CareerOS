@@ -1,11 +1,14 @@
 # packages/service/main.py
 import logging
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from packages.core.request_context import reset_request_id, set_request_id
 from packages.core.schemas import ApiResponse
+from packages.service.logging_conf import configure_logging
 from packages.service.routers.career_tree import deprecated_router as tree_legacy_router
 from packages.service.routers.career_tree import router as tree_router
 from packages.service.routers.health import router as health_router
@@ -14,6 +17,11 @@ from packages.service.routers.recommend import router as recommend_router
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 app = FastAPI(title="CareerOS API", version="0.1.0")
+
+# 模块级调用而不是 startup 事件：uvicorn 导入 app 时就会执行，早于数据加载与
+# 模型初始化；写在 @app.on_event("startup") 里会把启动阶段的日志全部漏掉。
+# 详见 packages/service/logging_conf.py 顶部说明。
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # 内置状态码的中文文案。HTTPException 自带的 detail 是英文（Not Found），
@@ -103,6 +111,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def attach_request_id(request: Request, call_next):
+    """给每个请求分配 request_id，写进上下文并回写响应头。
+
+    三个要点（清单 M3 P0-2）：
+    1. 入站已经有 X-Request-ID 就复用，前端或网关排查链路时需要对得上；
+    2. 不改响应体里的字符串——信封由 ApiResponse 序列化，改字符串会把
+       code/message 一起弄坏，所以用 contextvar 让模型构造时自己取；
+    3. 出口必须 reset，否则线程池/协程复用时下一个请求会拿到上一个 id。
+    """
+    incoming = request.headers.get("X-Request-ID", "").strip()
+    request_id = incoming or f"req_{uuid.uuid4().hex[:8]}"
+    token = set_request_id(request_id)
+    try:
+        response = await call_next(request)
+        # 响应头与响应体同源：body 里的 request_id 由 ApiResponse 从 contextvar 取
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        reset_request_id(token)
+
 
 app.include_router(recommend_router)
 app.include_router(occupations_router)

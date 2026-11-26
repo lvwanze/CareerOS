@@ -201,6 +201,57 @@ service 不直接调用 training 的训练脚本或训练入口。
 
 ---
 
+## ADR-011：分层取舍与两处越界的收敛条件
+
+状态：已定（2026-11-26，M3 代旭）
+
+背景：
+
+老师下发的《diabetes-risk 项目架构设计方案》要求「api 只依赖 core」；本项目
+README:335 则写明「service 调用算法」属业务允许；ADR-009 只禁了「调用训练脚本
+或训练入口」，没有对推理入口作规定。两处口径冲突，评审时会被直接追问，
+此前的架构测试也把它登记为待 M3 补 ADR 的事项（baseline.py 放行项）。
+
+现存两处越界（实测，非估算）：
+
+1. 分层越界：`packages/service/routers/recommend.py` 导入
+   `packages/training/inference.generate_recommendations`，service 直接依赖 training。
+2. 数据入口越界：四个模块各自读 CSV，未收敛到单一入口——
+   `service/knowledge.py` 5 处、`service/routers/health.py` 3 处、
+   `service/routers/occupations.py` 4 处、`training/matcher.py` 3 处
+   `csv.DictReader`，且 `knowledge.py` 与 `routers/*` 各自用
+   `Path(__file__).resolve().parents[N] / "data"` 推算数据目录（架构测试登记 4 处）。
+
+决策：
+
+1. 保留 service 对 training **推理入口**的依赖。理由：本项目是单进程单服务部署，
+   推理是纯函数（输入画像、输出推荐列表），与训练脚本不在同一生命周期；
+   拆成两次网络调用只会增加故障面，不增加任何隔离收益。
+2. 保留 router 直读 CSV 的现状到数据入口收敛完成，收敛目标是把读表统一收进
+   `service/knowledge.py`（它已具备 name_mapping、skill_descriptions、树结构三组加载器）。
+3. 维持单进程部署（uvicorn 单 worker）。进程内缓存（索引、名称映射）是当前
+   响应时间的主要保障，多 worker 会让缓存各存一份，收益为负。
+
+代价（必须写清楚，答辩时这一条要主动讲）：
+
+- 架构测试的 `service_not_import_training` 放行项继续存在，且**只放行推理入口这一种**；
+  新增任何 service→training 的依赖都会使构建失败。
+- 数据目录推算保持 4 处并存，新增第 5 处即使架构测试失败。
+- 老师方案里的「api 层」在本项目事实上由 `service` 承担，`core` 只放契约模型，
+  与方案图不完全一致——这是有意的取舍，不是遗漏。
+
+复审与拆分条件（满足任一即必须重做分层）：
+
+1. 出现第二个进程或需要横向扩展（多 worker / 多副本）；
+2. 训练与推理需要独立发布节奏（模型更新不再随服务发版）；
+3. 数据入口收敛完成（`knowledge.py` 成为唯一读表入口）——届时同步删除
+   架构测试里对应的数据目录放行项。
+
+不变式：除 `recommend.py` 的推理入口外，service 不得新增任何对 training 的依赖；
+本条由 `backend/tests/architecture/test_architecture.py` 强制。
+
+---
+
 ## 变更记录
 
 | 版本 | 日期 | 修改内容 |
