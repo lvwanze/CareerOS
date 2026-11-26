@@ -72,7 +72,7 @@ def test_TC_API_04_unified_response_fields(client, recommend_path):
     """统一响应四字段齐全，request_id 为 req_ 前缀（api_spec.md 口径）。
 
     代旭在 feat/api-contract-v2 将 request_id 由裸 UUID 统一为 req_ 前缀，
-    此断言锁定该口径防回归。已在 d0ea59a 真实后端单跑与全量中验证通过。
+    此断言锁定该口径防回归。已在 a36acd6（PR#18 合入后）真实后端全量中验证通过。
     本用例依赖 client；自检模式（无真实 app）下由 conftest 统一 skip——
     不再对参考 stub 自证通过（清单 P0-2 关闭假绿灯）。
     """

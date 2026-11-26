@@ -32,11 +32,12 @@ python -m pytest tests/acceptance -q
 python -m pytest tests -q
 ```
 
-## 三、实测结果（基准 main `d925839`，2026-11-24）
+## 三、实测结果（基准 main `a36acd6`，2026-11-26）
 
 ```
 python -m pytest tests/acceptance -q   →  89 passed / 0 failed
-python -m pytest tests -q              →  131 passed   （含后端原有测试）
+python -m pytest backend/tests -q      →  144 passed  （含后端原有测试 + 4 条架构测试）
+python scripts/ci.py                   →  五步全绿（ruff / mypy / architecture / pytest / coverage 92%）
 ```
 
 自检模式（无后端）：59 passed / 30 skipped（P0-2 关闭假绿灯后，接口用例全部 skip）。
@@ -52,6 +53,6 @@ python -m pytest tests -q              →  131 passed   （含后端原有测�
 - 发展树口径（PR#18）：`/api/v1/tree/{id}` 为正式路径，旧 `/v1/tree/{id}` 保留并带 `Deprecation` 头；未知职业 404，不再返回 mock。TC-API-06 已按真实结构断言。
 - `user_id` 必填、`goal_description` 上限 2000 字：规则已定、代码 pending，相关用例暂按兜底断言，落地后收紧。
 
-> **口径先行说明**：TC-API-06 / TC-MAP-08 的新断言按 PR#18 写好，PR 合并前在本地旧后端上会失败，属新口径先于实现落地，不是回归；自检模式因无真实 app 一律 skip，不会掩盖这一差异。合并后须在真实后端复跑确认。
+> **口径升级已复测**：TC-API-06 / TC-MAP-08 / TC-DATA-12 按 PR#18 新口径升级的断言，已于 2026-11-26 在合入 PR#18 的 `a36acd6` 真实后端上复跑通过（单跑 `3 passed`，验收套件 `89 passed / 0 skipped`）。自检模式因无真实 app 仍一律 skip，不对 stub 自证通过（P0-2）。
 
 维护与决策理由见同目录外的《测试侧决策记录.md》。
