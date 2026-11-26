@@ -1,0 +1,33 @@
+# CareerOS 单服务编排（清单 M3 P0-4）
+#
+# 答辩现场只需要两条命令：
+#   docker compose up -d --build
+#   curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/ready   -> 200
+#
+# healthcheck 打的是 /ready 而不是 /health：/health 只证明进程活着，
+# /ready 才证明三表读得到、能干活。编排器据此判断"能不能接流量"。
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: careeros-api:0.1.0
+    container_name: careeros-api
+    ports:
+      - "8000:8000"
+    environment:
+      # 日志级别走环境变量，演示时改 DEBUG 不用重新构建镜像
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      # 503 会让 urlopen 抛异常、进程非零退出，正好判为 unhealthy
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready',timeout=3).status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
