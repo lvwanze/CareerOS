@@ -47,7 +47,7 @@
 - Flutter 必须同时检查 HTTP 状态码和业务 code。
 - request_id 用于问题追踪。
 - FastAPI 自动生成的错误响应需要根据统一规范进行封装。
-- 已统一：参数校验 422、未匹配路由 404、方法不允许 405、未捕获异常 500 均返回上述信封，不再出现 `{"detail": ...}`。例外只有探针 `/health` 与 `/ready`，它们按运维约定保持裸结构（见 3.4、3.7）。
+- 已统一：参数校验 422、未匹配路由 404、方法不允许 405、未捕获异常 500 均返回上述信封，不再出现 `{"detail": ...}`。例外只有探针 `/health` 与 `/ready`，它们按运维约定保持裸结构（见 3.4、3.8）。
 - 校验失败时 `data.errors` 为数组，每项形如 `{"field": "profile.skills.0.skill_id", "message": "..."}`。`field` 使用点分路径，数组下标单独作为一段。
 
 ## 3. 第一阶段核心接口
@@ -173,17 +173,83 @@ GET /api/v1/skills
 
 用途：
 
-获取当前知识库中至少关联一个职业的技能，前端技能选择和展示仅使用 `used_in_kb=true` 的条目。零引用词表项不返回。
+获取知识库技能词表。默认返回**全量 35 条**，每条的 `used_in_kb` 由后端按
+`occupation_skills.csv` 现算，表示该技能是否至少关联一个职业。
+
+查询参数：
+
+- `used_only`（可选，布尔，默认 `false`）：`true` 时只返回 `used_in_kb=true` 的 33 条，
+  前端技能选择可直接用这个参数，不必自己再过滤。
 
 响应数据项：
 
 - skill_id
 - name（英文原始名称）
-- name_zh（中文显示名称，由后端参考映射提供）
-- category
-- used_in_kb（当前返回项均为 true）
+- name_zh（中文显示名称，由后端参考映射提供，缺失时回退 name）
+- category（essential / transferable）
+- used_in_kb（现算：词表 35 条中 33 条为 true，Equipment Selection、Installation 两条为 false）
+- description（技能英文说明，O\*NET 31.0 Content Model Reference 原文，
+  取自 `data/reference/skill_description.csv`）
 
-### 3.6 服务索引
+口径说明：
+
+- `used_in_kb` 以前写死 `true` 并把零引用技能直接过滤掉，字段恒真、信息量为零。
+  现在改为全量返回 + 逐条标注：前端照旧按 `used_in_kb=true` 过滤即可还原 33 条可选项，
+  也能看到"这两条为什么不在我这边"。
+- `description` 不在冻结表 `skills.csv` 里补（该表已冻结，description 列按 manifest
+  的 description_policy 留空），改由参考层提供，与中文名映射同一种做法。
+
+### 3.6 发展树
+
+GET /api/v1/tree/{occupation_id}
+
+用途：
+
+按职业返回可解释的学习发展树：**职业根节点 → 技能类别 → 技能**，三层（level 0~2）。
+
+结构规则：
+
+- 只有一个根节点，`parent_id` 为 `null`，`node_id` 形如 `TREE-OCC-ONET-15-2051.00`。
+- 第二层按 O\*NET 的技能两分法分组：`essential`（基本技能）、`transferable`（跨职能技能）；
+  只保留该职业实际有技能的组。
+- 父子关系固定为 occupation → category → skill，技能节点是叶子（不会再带子节点）；
+- 第三层是技能节点，父节点为该组；同级按 importance 降序、required_level 降序、skill_id 升序排列，
+  `order` 从 1 连续递增；`priority` 是全树学习顺序（1 开始）。
+- 技能节点数量等于 `occupation_skills.csv` 中该职业的关联记录数，不放任何写死的节点。
+- `status` 统一为 `not_started`：本接口描述"这个职业要求什么"，个人进度由前端本地持久化，
+  不写进知识库（两边都存会出现"接口说已掌握、用户说没学过"的冲突）。
+
+响应数据（`data`）：
+
+- occupation_id / occupation_name / occupation_name_zh
+- root_id（根节点 ID）
+- node_count（含根与类别节点的总数）
+- max_depth（当前为 2）
+- nodes：节点数组，字段见 data_contract.md §3.8
+
+节点字段：
+
+- node_id / parent_id / node_type（occupation / category / skill）
+- level（0/1/2）、order（同级从 1）、priority（全树学习顺序）
+- skill_id（仅技能节点有值，根与类别节点为 `null`）
+- skill_name（显示名，技能节点为中文名）、name_en（英文原名）
+- description（技能节点为 O\*NET 原文说明，类别节点为分组说明）
+- status（not_started / in_progress / mastered）
+- category、required_level（0~4）、importance（O\*NET 原始 IM 1~5）
+
+异常：
+
+- 职业不存在返回 HTTP 404，统一信封（`code=404`、`data=null`），不返回空树——
+  空树会被前端当成"该职业没有技能要求"，与"ID 写错"分不清。
+
+旧路径：
+
+- `GET /v1/tree/{occupation_id}` 保留可用（缺 `/api` 前缀的历史写法，前端
+  `api_service.dart` 仍在请求），响应体与正式路径一致，响应头带
+  `Deprecation: true` 与 `Link: </api/v1/tree/{id}>; rel="successor-version"`；
+  下个版本摘除。
+
+### 3.7 服务索引
 
 GET /
 
@@ -208,7 +274,7 @@ GET /
 
 根路径不是业务接口，但会出现在 `/docs` 里被当成接口调用，因此同样遵守统一信封。
 
-### 3.7 就绪探针
+### 3.8 就绪探针
 
 GET /ready
 
@@ -252,6 +318,10 @@ nodes：
 
 具体字段以 data_contract.md 为准。
 
+注意：`development_paths` 是"这一次推荐结果里的缺口顺序"，随画像变化；
+`GET /api/v1/tree/{occupation_id}`（§3.6）是"这个职业要求什么"的完整三层树，与画像无关。
+两者不要混用：前端画发展树用 §3.6，画本次推荐的缺口清单用 `development_paths`。
+
 ## 5. 错误处理
 
 建议统一处理：
@@ -275,7 +345,7 @@ nodes：
 - 必填字段是否存在：缺失时 422，`field` 指向缺字段。
 - 字段类型是否正确。
 - 技能等级是否在 0～4 范围：越界即 422（`profile.skills.{下标}.self_level`），不再静默按 0 处理。
-- 技能 ID 是否有效：`skill_id` 必须存在于知识库技能表（当前 35 条）；空串、或技能表里没有的 ID 返回 422（`profile.skills.{下标}.skill_id`）。前端可选项以 `GET /api/v1/skills` 返回的 33 条为准。
+- 技能 ID 是否有效：`skill_id` 必须存在于知识库技能表（当前 35 条）；空串、或技能表里没有的 ID 返回 422（`profile.skills.{下标}.skill_id`）。前端可选项以 `GET /api/v1/skills?used_only=true` 返回的 33 条为准（不带参数返回全量 35 条）。
 - 技能列表是否非空：`skills` 至少 1 项，空数组返回 422。
 - 列表字段是否符合要求。
 - 数值字段是否处于合理范围。
