@@ -21,6 +21,18 @@
 
 运行：python scripts/build_dataset.py
 依赖：Python 3 标准库（csv / pathlib），无需第三方包。
+
+原始数据获取（干净 clone 复现，对应答辩验收清单 M1-P0-2）：
+    data/raw/ 未纳入 Git（原始 O*NET 数据量较大）。在全新 clone 上复现前，
+    先从官方下载以下三份 CSV，放到 data/raw/onet31_csv/：
+      下载地址：https://www.onetcenter.org/dl_files/database/db_31_0_csv/
+        - occupation_data.csv      (sha256 a09eae1d6609686e44e05b7290993a1c8b523d8ca224bc0eedc194c855c3ee02)
+        - essential_skills.csv     (sha256 68c4d31d8c55077238395dca40cc4e6d32e6a608b5474bb8264b1f98ae415bd7)
+        - transferable_skills.csv  (sha256 f17d0419e818a3bf2f55076510c76c4aef01cc8f5aee2670d2f44f6f44ac60f7)
+    下载后用 `sha256sum data/raw/onet31_csv/*.csv` 核对，三项须与上面一致，
+    否则脚本会产出不同的表。校验通过后运行 `python scripts/build_dataset.py`，
+    产出三表应与 backend/data/manifest.json 登记的 sha256 逐字节一致
+    （2026-11-26 实测复现：occupations 087a2484… / skills 59ca8b64… / relations 00044bd0…）。
 """
 
 import csv

@@ -1,0 +1,14 @@
+{
+  "dataset": "CareerOS Occupation-Skill Knowledge Base",
+  "version": "0.5.0",
+  "status": "frozen",
+  "frozen_at": "2026-11-18T17:30:09+08:00",
+  "operator": "高帅龙（成员1 / M1 数据负责人）",
+  "authoritative_evidence": "backend/data/manifest.json",
+  "note": "本文件为冻结状态标记。冻结的权威证据与完整校验信息（三表 sha256、row_count、contract_version、验收记录）以 manifest.json 为准；二者版本一致（0.5.0）。2026-11-26 补齐本标记（此前为 0 字节空壳），三表数据与 sha256 未改动。",
+  "record_counts": {
+    "occupations": 28,
+    "skills": 35,
+    "relations": 492
+  }
+}
