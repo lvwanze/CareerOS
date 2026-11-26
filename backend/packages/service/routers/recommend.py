@@ -19,6 +19,7 @@ from packages.training.inference import MODEL_VERSION, generate_recommendations
 # 两个导入因此被要求分组加空行；而这个探测依赖运行目录，CI 与本机给出相反结论。
 # 相对导入固定归入 local 组，不受探测影响，两边判断一致。
 from .. import knowledge
+from ..prediction_log import record_prediction
 
 router = APIRouter(prefix="/api/v1", tags=["recommend"])
 logger = logging.getLogger(__name__)
@@ -144,6 +145,9 @@ async def recommend(request: RecommendationRequest):
 				for index, gap in enumerate(gaps, start=1)
 			],
 		))
+	# 旁路记录一次预测（加分项二）：写在 return 之前，保证"返回了几条"与记录一致；
+	# 写失败只在日志留 warning，不影响本次响应（见 prediction_log.record_prediction）。
+	record_prediction(profile, recommendations, MODEL_VERSION)
 	return RecommendationsResponse(
 		data=RecommendationsResponseData(
 			user_id=profile.user_id if profile.user_id is not None else "anonymous",
