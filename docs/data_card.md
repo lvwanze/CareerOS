@@ -119,6 +119,8 @@
 3. **技能描述为空**：本期不做技能详情展示，前端如需展示再从 O*NET 补列并重生成。
 4. **无 `required_level_raw`**：曾讨论保留 LV 原始 0~7，算法负责人已收回该需求（值域集中 1~3、gap 计算不需原始刻度、变更成本大于收益）。
 5. **中文名**：本期三表不含中文字段，由后端维护映射兜底。
+6. **招聘市场数据（本期不接入）**：招聘数据两表（`job_postings` 等）的 manifest 标记为 `0.2.0-draft`，注明确认前不得作为正式契约读入，目前无代码读取。**结论：第一阶段不接入招聘数据**，不进入知识库三表、不参与匹配与排序。原因：MVP 以可解释的基础算法和可现场指认的数据为准，招聘数据尚未完成来源许可与口径确认。接入计划放在第二阶段（个人毕设迭代），由 M3 代旭负责采集清洗与口径确认、M2 赵帝臣负责数据驱动权重；接入前需更新公共契约与本节结论。本数据集（O*NET 职业—技能知识库）是第一阶段唯一正式输入。
+7. **时点断言（as-of）**：本项目**不实现时点断言**。数据无时序标签、无快照时间轴，不存在「按某个历史时点重放推荐」的语义；用户画像快照即请求时点，匹配与差距计算只基于当前快照，不做跨时点对比。这是有记录的「不做」决策，而非遗漏。未来引入招聘市场数据后，该结论变化为：岗位需求带采集时间，可按 as-of 做时间旅行评估（某历史时点的技能需求与推荐），届时需为招聘数据表增加时间字段并单独设计快照读取逻辑，本职业—技能知识库本身仍不含时点语义。
 
 ---
 
@@ -142,11 +144,43 @@
 
 ## 七、复现方式
 
-**生成**（仅数据负责人运行，下游只读成品 CSV）：
+**从干净 clone 复现**（对应答辩验收清单 M1-P0-2）：
+
+`data/raw/` 因原始数据量大未纳入 Git，全新 clone 里没有它。按下面四步操作即可复现出与仓库逐字节一致的三表：
 
 ```bash
+# 1. 下载原始数据（O*NET 官方，无需注册）：
+#    https://www.onetcenter.org/dl_files/database/db_31_0_csv/
+#    下载 occupation_data.csv / essential_skills.csv / transferable_skills.csv 三份
+
+# 2. 放到 backend/data/raw/onet31_csv/ 后，核对校验和：
+cd backend
+sha256sum data/raw/onet31_csv/*.csv
+
+# 3. 校验通过后生成三表：
 python scripts/build_dataset.py
+
+# 4. 比对产物与 manifest 登记值：
+sha256sum data/processed/*.csv
 ```
+
+三份原始数据的 sha256（下载后必须核对一致）：
+
+| 原始数据文件 | sha256 |
+| --- | --- |
+| `occupation_data.csv` | `a09eae1d6609686e44e05b7290993a1c8b523d8ca224bc0eedc194c855c3ee02` |
+| `essential_skills.csv` | `68c4d31d8c55077238395dca40cc4e6d32e6a608b5474bb8264b1f98ae415bd7` |
+| `transferable_skills.csv` | `f17d0419e818a3bf2f55076510c76c4aef01cc8f5aee2670d2f44f6f44ac60f7` |
+
+生成三表的目标 sha256（应与 `backend/data/manifest.json` 一致）：
+
+| 成品表 | sha256 |
+| --- | --- |
+| `occupations.csv` | `087a2484e1a6db12497dda2bbbadf8bc37bfe50adb741c18334d0b5e00cc2512` |
+| `skills.csv` | `59ca8b64bb1c295cc6fb4a5e84ba3429cb21e20d3a6d09c671132e19825a12db` |
+| `occupation_skills.csv` | `00044bd0943fd019b7805633f0b6412258c71dd4c1fa6b11997020e75e02f8bb` |
+
+> 2026-11-26 实测：用上述原始数据 + 本脚本在干净目录复现，三表 sha256 与 manifest 登记值逐字节一致（28/35/492 行）。
 
 脚本从 `data/raw/onet31_csv/` 读取 O*NET 原始数据，按固化规则（职业白名单 28 个、IM≥3.0、两来源合并去重、ID 统一、评分换算）生成 `data/processed/` 三张表。规则变更时修改脚本顶部参数后重跑，并同步更新 `manifest.json` 的 sha256 与版本号。
 

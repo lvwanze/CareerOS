@@ -27,3 +27,8 @@
 
 # ---- M2 算法：署名 zhaodichen（邮箱本身即姓名拼音）----
 赵帝臣 <zhaodichen@example.com> zhaodichen <zhaodichen@example.com>
+
+# ---- M1 数据：高帅龙本人署名 GSL（2026-11-26 起本人独立提交）----
+# 此前 M1 成果由组长吕宛泽代提交（272d516）；本次起本人用本机 git 署名 GSL 提交，
+# 归一为 README 分工中的「高帅龙」。归一后共 5 个名字，满足组长验收口径。
+高帅龙 <GSL@3583310277.qq.com> GSL <GSL@3583310277.qq.com>
