@@ -12,7 +12,6 @@ import 'package:frontend/models/evidence_level.dart';
 import 'package:frontend/recommendation_page.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/profile_storage.dart';
-import 'package:frontend/services/recommendation_store.dart';
 import 'package:frontend/skill_tree_page.dart';
 
 const String _baseUrl = 'http://127.0.0.1:8000';
@@ -86,7 +85,6 @@ void main() {
       final statuses = first.skillGaps.map((g) => g.status).toSet();
       print('STATUS >>> $statuses');
 
-      RecommendationStore.instance.cache(result);
       final treeProfile = CareerProfile(
         name: profile.name,
         targetRole: first.occupationNameZh,
@@ -112,11 +110,78 @@ void main() {
 
       await tester.tap(find.text('查看发展路径').first);
       await tester.pump();
-      await _settle(tester, find.textContaining('成长路线'));
-      expect(find.textContaining('成长路线'), findsOneWidget);
+      await _settle(tester, find.textContaining(' 发展树'));
+      final tree = await ApiService.fetchCareerTree(first.occupationId);
+      print('TREE >>> ${tree.occupationNameZh} nodeCount=${tree.nodeCount} '
+          'maxDepth=${tree.maxDepth} categories=${tree.categories.length} '
+          'skills=${tree.skillNodes.length} priorities='
+          '${tree.skillNodes.map((n) => n.priority).join(",")}');
+      expect(find.text('${tree.occupationNameZh} 发展树'), findsOneWidget);
+      expect(find.textContaining('${tree.nodeCount} 节点'), findsOneWidget);
+      expect(find.textContaining('项技能'), findsWidgets);
       expect(find.textContaining('后端状态：'), findsWidgets);
+      // mock 树的 SK001/SK002 不能出现在任何节点文本里
       expect(find.textContaining('SK00'), findsNothing);
-      print('TREE >>> ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '').where((s) => s.contains('个节点')).join()}');
+      // 类别分组标题来自 TreeNode.skill_name
+      for (final category in tree.categories) {
+        expect(
+            find.textContaining('${category.skillName}（'), findsWidgets,
+            reason: '类别节点 ${category.nodeId} 未渲染');
+      }
+      // 勾选第一项技能 → 进度写本机并反映到进度条
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      expect(find.text('1 / ${tree.skillNodes.length} 项技能'), findsOneWidget);
+      final storage = await ProfileStorage.open();
+      expect(storage.loadCompletedNodes(first.occupationId),
+          contains(tree.skillNodes.first.nodeId));
+    });
+  });
+
+  testWidgets('发展树：职业 ID 不存在时显示 404 原因而不是空树', (tester) async {
+    _useTallScreen(tester);
+    await tester.runAsync(() async {
+      const missingId = 'OCC-ONET-99-9999.99';
+      final storage = await ProfileStorage.open();
+      await storage.saveProfile(CareerProfile(
+        name: '吕宛泽',
+        targetRole: '数据分析',
+        experience: '有项目经验',
+        weeklyHours: 8,
+        occupationId: missingId,
+        skills: const [
+          ProfileSkill(
+              skillId: 'SKILL-ONET-2.A.1.a',
+              name: '阅读理解',
+              selfLevel: 3,
+              evidenceLevel: 'course'),
+        ],
+      ));
+
+      await tester.pumpWidget(MaterialApp(
+        home: SkillTreePage(
+          profile: CareerProfile(
+            name: '吕宛泽',
+            targetRole: '数据分析',
+            experience: '有项目经验',
+            weeklyHours: 8,
+            occupationId: missingId,
+            skills: const [
+              ProfileSkill(
+                  skillId: 'SKILL-ONET-2.A.1.a',
+                  name: '阅读理解',
+                  selfLevel: 3,
+                  evidenceLevel: 'course'),
+            ],
+          ),
+        ),
+      ));
+      await _settle(tester, find.text('发展树读取失败'));
+      expect(find.text('发展树读取失败'), findsOneWidget);
+      expect(find.textContaining('职业不存在：$missingId'), findsOneWidget);
+      expect(find.text('还没有选定职业方向'), findsNothing);
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('重试'), findsOneWidget);
     });
   });
 
@@ -125,7 +190,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final storage = await ProfileStorage.open();
     expect(storage.loadProfile(), isNull);
-    expect(storage.hasCompletedNodes('occ_x'), isFalse);
+    expect(storage.loadCompletedNodes('occ_x'), isEmpty);
 
     final profile = CareerProfile(
       name: '吕宛泽',
