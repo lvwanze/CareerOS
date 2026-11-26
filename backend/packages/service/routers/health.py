@@ -96,7 +96,11 @@ def _readiness_payload(force_refresh: bool) -> tuple[bool, dict]:
     if ready:
         payload = {
             "status": "ready",
-            "engine": "stub",
+            # 原来写死 "stub"：那是后端还没接真实算法时的标记。现在数据是三张真实
+            # 冻结表、推荐走 training.matcher 真实加权，再返回 stub 会让人误判服务
+            # 还在用桩数据（答辩现场必被问）。改用 "real"，与验收测试里
+            # conftest 的 real/stub 二分口径保持一致。
+            "engine": "real",
             "contract_version": "V1.0",
             "data": detail,
         }
