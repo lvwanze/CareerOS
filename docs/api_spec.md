@@ -246,10 +246,14 @@ GET /api/v1/tree/{occupation_id}
 
 旧路径：
 
-- `GET /v1/tree/{occupation_id}` 保留可用（缺 `/api` 前缀的历史写法，前端
-  `api_service.dart` 仍在请求），响应体与正式路径一致，响应头带
-  `Deprecation: true` 与 `Link: </api/v1/tree/{id}>; rel="successor-version"`；
+- `GET /v1/tree/{occupation_id}` 保留可用（缺 `/api` 前缀的历史写法），响应体与正式路径
+  一致，响应头带 `Deprecation: true` 与 `Link: </api/v1/tree/{id}>; rel="successor-version"`；
   下个版本摘除。
+- 标注原因与现状（2026-11-26 复核）：该路径是历史遗留，**前端已不再调用**
+  （`frontend/lib/services/api_service.dart` 现只请求 `/api/v1/recommendations`、
+  `/api/v1/skills`、`/api/v1/occupations`），保留一个版本仅为兼容早期调用方。
+  本路径 `include_in_schema=False`，不进 `/openapi.json` 与 `docs/interfaces.md`，
+  避免前端照着旧路径写代码。
 
 ### 3.7 服务索引
 
