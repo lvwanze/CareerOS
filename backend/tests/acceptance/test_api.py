@@ -120,26 +120,99 @@ def test_TC_API_05_development_paths_structure(client, recommend_path):
 
 
 @pytest.mark.api
-def test_TC_API_06_tree_endpoint_shape(client, api_mode):
-    """/v1/tree/{occupation_id} 形状校验：后端标注为 mock，形状即最终形状，只测形状不测内容。
+def test_TC_API_06_tree_is_real_structured_and_versioned(client, api_mode):
+    """发展树：真实数据、三层结构、未知 ID 404、旧路径弃用标记（单条不涨数）。
 
-    实际返回节点字段：node_id / skill_id / skill_name / status / description；
-    顶层 data 含 occupation_id / nodes。自检 stub 无该路由，真实后端才测。
-    status 值同样不写死（契约/代码枚举冲突待确认）。
+    2026-11-25 代旭 PR#18 把 /v1/tree 从写死的 3 个 mock 节点改为按
+    occupation_id 从三张表现拼：职业根(L0) → 技能类别(L1) → 技能(L2)，
+    并新增正式路径 /api/v1/tree/{id}。本用例据此由"只测 mock 形状"升级：
+      - 顶层：occupation_id / root_id / node_count / max_depth / nodes 齐全；
+      - 结构：唯一根、parent_id 指向存在的节点、level=父+1、同级 order 连续、无环；
+      - 真实：不同职业给出不同树，技能节点数 = 该职业关联表记录数；
+      - 边界：未知 occupation_id 返回 404 + 统一信封（不是空树）；
+      - 兼容：旧路径 /v1/tree 可用且带 Deprecation 头。
+
+    注意：本用例需 PR#18 合并后的真实后端；合并前在本地旧后端上断言会失败，
+    属预期（新口径先于实现落地），不是回归。自检模式由 conftest 统一 skip。
     """
     if api_mode != "real":
-        pytest.skip("/v1/tree 仅真实后端提供（自检 stub 无此路由）")
-    resp = client.get("/v1/tree/OCC-ONET-15-2051.00")
-    assert resp.status_code == 200, resp.text
-    data = _json(resp)
-    assert "request_id" in data
-    payload_data = data["data"]
-    assert "occupation_id" in payload_data
-    nodes = payload_data["nodes"]
+        pytest.skip("发展树接口仅真实后端提供（自检 stub 无此路由）")
+
+    data_scientist = "OCC-ONET-15-2051.00"
+    analyst = "OCC-ONET-15-1211.00"
+
+    def get_tree(occ_id, path="/api/v1/tree"):
+        resp = client.get(f"{path}/{occ_id}")
+        assert resp.status_code == 200, resp.text
+        body = _json(resp)
+        assert body["code"] == 200
+        assert body["request_id"].startswith("req_")
+        return body["data"]
+
+    tree = get_tree(data_scientist)
+    for field in ("occupation_id", "root_id", "node_count", "max_depth", "nodes"):
+        assert field in tree, f"发展树 data 缺字段 {field}"
+    nodes = tree["nodes"]
     assert isinstance(nodes, list) and nodes
-    for node in nodes:
-        for field in ("node_id", "skill_id", "skill_name", "status", "description"):
-            assert field in node, f"tree 节点缺字段 {field}"
+    assert tree["node_count"] == len(nodes)
+    assert tree["max_depth"] == 2
+
+    by_id = {n["node_id"]: n for n in nodes}
+    assert len(by_id) == len(nodes), "node_id 重复"
+    for n in nodes:
+        for field in (
+            "node_id", "parent_id", "node_type", "level", "order", "skill_id",
+            "skill_name", "description", "status", "priority",
+        ):
+            assert field in n, f"树节点缺字段 {field}"
+        assert n["node_type"] in ("occupation", "category", "skill")
+        assert n["status"] in ("not_started", "in_progress", "mastered")
+        assert n["level"] <= tree["max_depth"]
+    roots = [n for n in nodes if n["parent_id"] is None]
+    assert len(roots) == 1 and roots[0]["node_id"] == tree["root_id"], "必须唯一根"
+    assert roots[0]["node_type"] == "occupation" and roots[0]["level"] == 0
+
+    siblings = {}
+    for n in nodes:
+        if n["parent_id"] is None:
+            continue
+        parent = by_id[n["parent_id"]]
+        assert n["level"] == parent["level"] + 1, f"{n['node_id']} 层级跳级"
+        assert n["node_type"] == {"occupation": "category", "category": "skill"}.get(
+            parent["node_type"]
+        ), f"{n['node_id']} 父子类型不匹配"
+        if n["node_type"] == "skill":
+            assert n["skill_id"], "技能节点必须有 skill_id"
+        else:
+            assert n["skill_id"] is None, "非技能节点 skill_id 应为 null"
+        siblings.setdefault(n["parent_id"], []).append(n["order"])
+    for parent_id, orders in siblings.items():
+        assert sorted(orders) == list(range(1, len(orders) + 1)), (
+            f"{parent_id} 下 order 不连续"
+        )
+    for n in nodes:
+        cursor, steps = n, 0
+        while cursor["parent_id"] is not None:
+            cursor = by_id[cursor["parent_id"]]
+            steps += 1
+            assert steps <= len(nodes), f"{n['node_id']} 父链成环"
+        assert cursor["node_id"] == tree["root_id"], f"{n['node_id']} 无法上溯到根"
+
+    # 真实数据：两个职业的树不同（旧 mock 对任何 ID 都返回同一份）
+    other = get_tree(analyst)
+    assert other["nodes"] != nodes, "不同职业应返回不同的树"
+
+    # 未知职业：404 + 统一信封，不返回空树
+    missing = client.get("/api/v1/tree/occ_eng")
+    assert missing.status_code == 404, missing.text
+    assert _json(missing)["code"] == 404
+    assert _json(missing)["data"] is None
+
+    # 旧路径保留但标弃用（前端仍在迁移窗口内）
+    legacy = client.get(f"/v1/tree/{data_scientist}")
+    assert legacy.status_code == 200, legacy.text
+    assert legacy.headers.get("deprecation") == "true"
+    assert "successor-version" in legacy.headers.get("link", "")
 
 
 # ---------------- 异常与边界（编号对齐报告骨架表 5-3）----------------
