@@ -19,7 +19,7 @@ backend/
 ├── configs/            feature_catalog.yaml（待 M1 补）
 ├── scripts/            数据构建/清洗脚本，train.py 待 M2 补
 └── tests/
-    ├── acceptance/     六层 89 条验收测试（M5 交付）
+    ├── acceptance/     六层验收测试（M5 交付；64 个 test_ 函数 / 参数化展开 89 条）
     │   └── reference/  契约模型、参考算法、stub、真实数据加载
     ├── architecture/   架构测试 4 条 + baseline.py 放行清单（M5 P1）
     └── test_*.py       后端原有单元与 smoke 测试
@@ -61,8 +61,10 @@ CI 的 workflow 见 `.github/workflows/ci.yml`（push/PR 到 main、feature、ho
 架构测试采用「基线 + 显式放行清单」：现状越界在 `backend/tests/architecture/baseline.py`
 登记放行，新增越界即构建失败；详见 `docs/架构测试交付说明.md`。
 
-实测基线（2026-11-25，基准 `453841f`）：ruff PASS / mypy PASS / architecture **4 passed** /
-pytest **135 passed** / coverage 92% → 质量门全绿。
+实测基线（2026-11-26，基准 `96db006`，PR#21 合入后）：ruff PASS / mypy PASS /
+architecture **4 passed** / pytest **144 passed**（`144 collected`） / coverage **92%**（观测值，
+`ci.py` 不设硬阈值）→ 质量门全绿。记录集数：全仓 `def test_` **119** 个函数，参数化展开后 144 条；
+其中 acceptance 64 个函数展开为 89 条。换算详见 `docs/测试执行结果.md` §2.2。
 
 ## 4. 验收测试的两种模式（重要口径）
 
@@ -82,4 +84,6 @@ pytest **135 passed** / coverage 92% → 质量门全绿。
 2. 不要改动他人文件（生产代码 `packages/*`、数据 `data/*`）；若 ruff/mypy 报他人存量问题，
    在 `pyproject.toml` 按文件精确豁免并注明归属，不要用 `--fix` 自动改他人代码。
 3. 报问题时附 commit hash，便于区分版本问题与环境问题。
-4. 提交作者与负责人对应关系见后续 `.mailmap`（M5 P1，未做）。
+4. 提交作者与负责人对应关系已用仓库根 `.mailmap` 归一（M5 P1，已交付）：
+   `git log --format='%aN' | sort -u` 实测 5 个名字，与 README 分工一一对应；
+   逐人映射与「代提交」说明见 `docs/提交作者与负责人对照表.md`。

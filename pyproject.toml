@@ -75,5 +75,5 @@ omit = ["**/__pycache__/*", "backend/packages/*/__init__.py"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
-# 不设硬阈值：当前基线约 76%，先让覆盖率可见、可持续追踪，
+# 不设硬阈值：2026-11-26 在 96db006 实测观测值为 92%（731 stmts），仅追踪不承诺；
 # 待测试补齐后再逐步提高 fail_under。

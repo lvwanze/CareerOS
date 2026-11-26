@@ -28,12 +28,14 @@ python scripts/ci.py
 ```
 PASS  ruff      (exit=0)     # E4/E7/E9/F/I，全 backend + ci.py 自身
 PASS  mypy      (exit=0)     # 11 个源文件，Success: no issues found
-PASS  pytest    (exit=0)     # 131 passed, 1 warning（真实后端）
-PASS  coverage  (exit=0)     # TOTAL 538 stmts, 92% cover
+PASS  pytest    (exit=0)     # 144 passed, 1 warning（真实后端，144 collected）
+PASS  architecture (exit=0)  # 4 passed
+PASS  coverage  (exit=0)     # TOTAL 731 stmts, 92% cover
 质量门全绿 ✅
 ```
 
-- pytest 在两步里各跑一次（测试步骤 + 覆盖率步骤），都是 131 passed。
+实测基准：2026-11-26，`origin/main` `96db006`（PR#21 合入后）。
+- pytest 在两步里各跑一次（测试步骤 + 覆盖率步骤），都是 144 passed。
 - 唯一 warning 是 Starlette 的 httpx 弃用提示，与本项目无关。
 - CI 侧 workflow 用 `ubuntu-latest` + Python 3.11，Linux 下 CSV 天然 LF，`scripts/ci.py` 不依赖任何 Windows 特化处理。
 
@@ -52,8 +54,8 @@ PASS  coverage  (exit=0)     # TOTAL 538 stmts, 92% cover
 ## 四、与组长清单其他项的关系
 
 - `.gitattributes` 同时覆盖 M1-P0-1「固定 CSV 行尾」的基础设施需求：新 clone 后 CSV 为 LF，`sha256sum` 与 manifest 一致。M1 若已单独提交同类文件，合并时保留其一即可。
-- pytest 的 131 passed 与清单附录"106 个 test_ 函数"是同一批测试的不同数法：106 是函数数，参数化展开后为 131 个用例（其中验收套件 89 条）。
-- P0-2「关闭假绿灯」已按组长清单完成（详见 `docs/测试执行结果.md` 2.3.1）：自检模式下依赖 `client` 的接口/端到端用例统一 skip（59 passed / 30 skipped），不再对参考 stub 自证通过；真实后端模式仍 89 passed、全量 131 passed，质量门不受影响。该项独立于本质量门。
+- pytest 的 144 passed 与清单附录的 `def test_` 函数数是同一批测试的不同数法：全仓 119 个函数、参数化展开后 144 条（其中 acceptance 64 个函数展开为 89 条）。换算详见 `docs/测试执行结果.md` §2.2。
+- P0-2「关闭假绿灯」已按组长清单完成（详见 `docs/测试执行结果.md` 2.3.1）：自检模式下依赖 `client` 的接口/端到端用例统一 skip（59 passed / 30 skipped），不再对参考 stub 自证通过；真实后端模式仍 89 passed、全量 144 passed，质量门不受影响。该项独立于本质量门。
 
 ## 五、待用户操作
 
