@@ -33,7 +33,11 @@ from datetime import datetime
 
 from packages.core.request_context import current_request_id
 
-from packages.service import knowledge
+# 必须用相对导入：写成 from packages.service import knowledge 时，ruff 的 first-party
+# 探测依赖运行目录（Windows 与 CI 的 Linux 会给出相反结论），把两行判成不同分组，
+# 于是本机自动插入空行、CI 报 I001。相对导入固定归入 local 组，两边一致——
+# 这是 recommend.py 里已经踩过并记录过的同一个坑。
+from . import knowledge
 
 logger = logging.getLogger(__name__)
 
