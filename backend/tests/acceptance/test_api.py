@@ -19,8 +19,6 @@ from factories import (
     skill_level,
     unknown_skill_profile,
 )
-from packages.core.schemas import SkillInput
-from packages.training.matcher import EVIDENCE_LEVELS
 
 
 def _json(response):
@@ -335,7 +333,14 @@ def test_TC_EX_10_evidence_level_out_of_enum(client, recommend_path):
 
     末尾断言 service 层枚举与算法层 EVIDENCE_LEVELS 一致：两处各写一份
     白名单，不同步会让「接口放行、算法归 none」重新出现，必须锁死。
+
+    两个包级 import 放在函数内：一键包自检模式没有 backend/packages，模块顶层
+    import 会让整个 test_api.py collection 失败（P0-2 假绿灯回归）。本用例依赖
+    client，自检模式必被 skip，函数体不执行，import 也就不会触发。
     """
+    from packages.core.schemas import SkillInput
+    from packages.training.matcher import EVIDENCE_LEVELS
+
     for bad_value in ("课程作业", "projct", "PROJECT", "verified"):
         response = client.post(
             recommend_path,

@@ -444,7 +444,7 @@ FastAPI 接收请求
 - [x] 能够生成基础职业发展路径。（TC-API-05/06 校验真实三层树结构与 `/api/v1/tree`，树页 `skill_tree_page.dart:41` 走真实接口，实测通过）
 - [x] FastAPI 能够正常接收请求并返回结果。（TC-API-01/02，`/health` 与 `/recommendations` 200，实测通过）
 - [x] Flutter 能够展示完整推荐结果。（三页全用 `ApiService`：`questionnaire_page.dart:52`、`recommendation_page.dart:40`、`skill_tree_page.dart:41`，响应模型已解析展示，PR#20 已合入 main）
-- [x] 核心算法与 API 测试通过。（`python -m pytest tests/acceptance -q` → 89 passed / 0 skipped；全量 `144 passed` / `144 collected`，`96db006` 实测）
+- [x] 核心算法与 API 测试通过。（`python -m pytest backend/tests/acceptance -q` → 90 passed / 0 skipped；全量 `147 passed` / `147 collected`，2026-11-27 合并态实测）
 - [ ] 能够完成一次完整的系统演示。〔前端三页与后端已接通、可现场联调；但演示录制/截图等证据尚未归档，故本项仍不勾。功能已具备，缺的是证据材料〕
 
 ---
