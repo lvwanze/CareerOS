@@ -36,6 +36,36 @@
 
 用户自评不等于客观能力证明。
 
+### 2.2.1 能力证据枚举（`evidence_level`，2026-11-27 冻结）
+
+只接受以下 7 个英文小写值，**不做大小写归一，也不做中文映射**：
+
+| 值 | 含义 |
+| --- | --- |
+| `none` | 无证据 |
+| `self` | 用户自述 |
+| `course` | 课程 / 培训 |
+| `project` | 项目经历 |
+| `work` | 工作 / 实习 |
+| `certificate` | 证书 / 认证 |
+| `test` | 客观测评 |
+
+两条缺省约定：
+
+1. **不传该字段或传 `null`**：按 `self` 处理，不判待验证（用户勾选了技能即视为自述有证据）。
+2. **显式传 `none`**：按无证据处理，技能达标时判 `needs_verification`。
+
+分层校验（两处分工固定，不得互相替代）：
+
+| 层 | 行为 | 位置 |
+| --- | --- | --- |
+| HTTP 入口 | 非法值 **422**，`field` 定位到 `profile.skills.N.evidence_level` | `packages/core/schemas.py` `SkillInput`（`Literal`） |
+| 算法层直调 | 未知值告警后归 `none`，不抛异常 | `packages/training/matcher.py` `_normalize_evidence` |
+
+第二层保留宽容是有意的：matcher 会被脚本、离线任务、单元测试直接调用，不该因一个字段中断整批计算。但**对外 HTTP 边界不允许静默降级**，脏值在进入业务逻辑前就被拦下。
+
+> 变更提示：2026-11-20 及以前，HTTP 层也做归一，中文「课程作业」被静默转成 `none` 并返回 200，那项技能随之变成 `needs_verification`。该行为已取消，调用方需改用上表英文值；旧值 `verified` 同样不再接受。
+
 ## 3. 核心数据模型
 
 ### 3.1 UserProfile：用户画像
@@ -298,7 +328,7 @@ level 等于父节点 +1；父子类型必须是 occupation→category→skill�
 
 - 用户画像各字段的最终必填规则。
 - 技能等级量表及职业要求等级。
-- evidence_level 的具体枚举。
+- ✅ 已定（2026-11-27，ADR-012）：`evidence_level` 为 7 值枚举 `none / self / course / project / work / certificate / test`，见 §2.2.1；HTTP 层非法值返回 422，不传按 `self`、显式 `none` 判待验证。
 - importance 的取值和归一化方式。
 - match_score 的计算范围。
 - DevelopmentPath 的具体生成责任。
