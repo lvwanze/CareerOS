@@ -43,6 +43,10 @@ def _format_validation_error(err: dict) -> dict:
     loc = [str(part) for part in err.get("loc", ()) if part != "body"]
     field = ".".join(loc) or "body"
     ctx = err.get("ctx") or {}
+    # pydantic 的 expected 形如 "'none', 'self', ... or 'test'"，转成前端可直接展示的
+    # "none / self / ... / test"；不要把英文连接词透给用户。
+    expected = str(ctx.get("expected", "")).replace("'", "")
+    enum_hint = expected.replace(", ", " / ").replace(" or ", " / ")
     message = {
         "less_than_equal": f"不能大于 {ctx.get('le')}",
         "greater_than_equal": f"不能小于 {ctx.get('ge')}",
@@ -54,6 +58,8 @@ def _format_validation_error(err: dict) -> dict:
         # profile 传成字符串/数组时的两种 type 标识（构造模型与 HTTP 请求路径不同）
         "model_type": "必须是对象",
         "model_attributes_type": "必须是对象",
+        # Literal 枚举不匹配（如 evidence_level 传中文或拼错）
+        "literal_error": f"取值必须是 {enum_hint or '约定的枚举值'} 之一",
     }.get(err.get("type", ""), err.get("msg", "格式不正确"))
     return {"field": field, "message": message}
 

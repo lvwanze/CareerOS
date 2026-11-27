@@ -43,7 +43,7 @@ def base_profile(**overrides):
             "work_style": ["独立工作"],
         },
         "skills": [
-            {"skill_id": SKILL_PROGRAMMING, "self_level": 3, "evidence_level": "verified"},
+            {"skill_id": SKILL_PROGRAMMING, "self_level": 3, "evidence_level": "certificate"},
             {"skill_id": SKILL_MATHEMATICS, "self_level": 2, "evidence_level": "self"},
             {"skill_id": SKILL_CRITICAL_THINKING, "self_level": 3, "evidence_level": "project"},
         ],
