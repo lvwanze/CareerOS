@@ -44,7 +44,7 @@
 | `user_id` | str | 否 | — | 仅透传，算法不使用 |
 | `skills[].skill_id` | str | 是 | 35 个已知技能 ID | 不在白名单则**告警并忽略该条** |
 | `skills[].self_level` | int | 是 | 0 ~ 4 | 缺省按 0；越界抛 `ValueError`，HTTP 层由 `SkillInput` 拦成 **422** |
-| `skills[].evidence_level` | str | 否 | `none / self / course / project / work / certificate / test` | **HTTP 层缺省 `self`**；未知值归 `none` 并告警；大小写与首尾空白不敏感 |
+| `skills[].evidence_level` | str | 否 | `none / self / course / project / work / certificate / test` | **HTTP 层缺省 `self`**；非法值 **422**（大小写敏感，不做中文映射）；算法层直调时未知值归 `none` 并告警 |
 
 **三条输入约定：**
 
@@ -52,12 +52,12 @@
 2. **`self_level` 越界不宽容。** `[-1]` 或 `[5]` 直接抛 `ValueError`，不做截断——静默截断会让用户以为 5 级被记录了。HTTP 边界由 `packages/core/schemas.py::SkillInput` 用 `ge=0, le=4` 拦成 422，`loc` 精确到 `body.profile.skills[i].self_level`，不会漏成 200 或 500。
 3. **`evidence_level` 的缺省值分两层，不要混用。**
 
-   | 调用方式 | 不传 / `null` / 空串 | 未知字符串（如 `projct`） |
+   | 调用方式 | 不传 / `null` / 空串 | 未知字符串（如 `projct`、`课程作业`、`PROJECT`） |
    | --- | --- | --- |
-   | HTTP（`generate_recommendations`） | `self`（已具备） | 归 `none`（待验证），HTTP 仍 200 |
-   | 直接调 `matcher.recommend` | `none`（待验证） | 归 `none`（待验证） |
+   | HTTP（`generate_recommendations`） | `self`（已具备） | **422**（2026-11-27 起由 `Literal` 硬校验，`field` 指向该条技能） |
+   | 直接调 `matcher.recommend` | `none`（待验证） | 归 `none`（待验证），只告警，不抛异常 |
 
-   分层的理由：HTTP 侧对应前端问卷，用户勾了技能就算「我做过」；matcher 侧可能被离线脚本或单元测试调用，没有问卷语境，宁可按无证据算。**证据只影响 `status`，不参与 `match_score` 计算**——实测 6 种证据输入，最高分恒为 `0.1170`。
+   分层的理由：HTTP 侧对应前端问卷，用户勾了技能就算「我做过」；matcher 侧可能被离线脚本或单元测试调用，没有问卷语境，宁可按无证据算。HTTP 层不再替调用方猜——中文、拼错、大写都会被拒绝，因为「静默改成无证据」会让用户以为自己填的证据生效了。**证据只影响 `status`，不参与 `match_score` 计算**——实测「不传 + 7 个合法值」共 8 种输入，最高分恒为 `0.1170`，仅 `none` 判 `needs_verification`，其余（含不传）判 `mastered`。
 
 ---
 
@@ -229,9 +229,8 @@ Jaccard(A, B) = |A ∩ B| / |A ∪ B|         A、B 为职业技能集合
 2. **输入依赖自评，无法校验真伪。** 模型只能通过 `evidence_level` 区分「有证据」与「只有自评」，无法判断用户是否高估自己。全填 4 级的用户会拿到接近满分的推荐，这是设计上接受的偏差。
 3. **技能粒度偏粗。** 35 个技能多为通用认知技能，缺专业技术技能，导致职业区分度低（378 对平均 Jaccard 0.6655）。当前靠 IDF 加权与去重缓解，根因需从 O*NET Technology Skills 扩充技能表解决。
 4. **`required_level` 实际值域仅 1~3。** 契约定义 0~4，但 `IM >= 3.0` 筛选后本数据不出现 0 与 4 级。`gap` 理论上限为 3，不会出现 4；测试不宜按 0~4 全档位断言。
-5. **`evidence_level` 枚举未在契约中冻结。** 契约 §2.2 标注为「待确认」，模型已按 7 个值实现（`none/self/course/project/work/certificate/test`）。需在契约下一版固化，否则前后端各写一套会静默失配。
-6. **算法层的宽容策略不适用于 HTTP 边界。** matcher 遇到未知 `evidence_level` 只告警并按 `none` 处理，因为它可能被脚本、离线任务直接调用，不应因一个字段中断整批计算；HTTP 入口由 Pydantic `Literal` 拦成 422。两层分工明确，但若有人绕过 service 层直接调 matcher，脏数据不会报错。
-7. **中文名不在模型内。** 中英文映射由后端 `backend/data/reference/*_name_zh.csv` 提供，算法全程只用 ID 与数值字段。好处是映射可独立维护，代价是缺映射时前端会显示英文原名。
+5. **算法层的宽容策略不适用于 HTTP 边界。** matcher 遇到未知 `evidence_level` 只告警并按 `none` 处理，因为它可能被脚本、离线任务直接调用，不应因一个字段中断整批计算；HTTP 入口由 Pydantic `Literal` 拦成 422（2026-11-27 起生效，中文／拼写错误／大写均实测 422）。两层分工明确，但若有人绕过 service 层直接调 matcher，脏数据仍只告警不报错——这是刻意保留的离线宽容，不是遗漏。
+6. **中文名不在模型内。** 中英文映射由后端 `backend/data/reference/*_name_zh.csv` 提供，算法全程只用 ID 与数值字段。好处是映射可独立维护，代价是缺映射时前端会显示英文原名。
 
 ---
 
@@ -244,6 +243,7 @@ Jaccard(A, B) = |A ∩ B| / |A ∪ B|         A、B 为职业技能集合
 | 2026-11-18 17:25 | matcher-v1 | 随仓库 `backend/` 目录重构迁移，迁移前后分数完全一致 |
 | 2026-11-19 | matcher-v1 | 抽出 `build_index` / `recommend_from_index` 支持数据注入；`inference.py` 改为调用 matcher，恢复被简化的去重与三档判定。分数变化来自实现差异（0.4105→0.4620），与中文名无关 |
 | 2026-11-20 | matcher-v1 | 版本号改为从 `MODEL_VERSION` 单点获取，消除路由硬编码 `weighted-knowledge-base-v1` 造成的一处不一致；路由透传 `evidence_level`，修复 `needs_verification` 在 HTTP 链路上永不出现的问题。修复后 `d4_cases.json` 两组基线经接口复测，分数与顺序完全一致 |
+| 2026-11-27 | matcher-v1 | `evidence_level` 枚举冻结为 7 值（ADR-012），HTTP 层加 Pydantic `Literal` 硬校验：中文／拼写错误／大写／旧值 `verified` 由「静默归 `none` 返 200」改为 **422**，不传仍按 `self`。契约 §2.2.1、`api_spec` §3.5 同步；算法与分数未变 |
 
 > 验收口径（版本号确认方式、画像定义、`match_score` 取值范围、字段映射、边界行为）另见 `docs/algorithm_acceptance_brief.md`。
 

@@ -13,7 +13,7 @@
 | 唯一来源 | `backend/packages/training/matcher.py` → `MODEL_VERSION` |
 | 对外出口 | `POST /api/v1/recommendations` 响应 `data.model_version` |
 | 算法接入提交 | `a631abf`（`inference.py` 改为调用 `matcher`） |
-| 口径修订提交 | `1bf2817`（版本号单点化）、`5d258da`（`evidence_level` 透传）、`8de7ce2`（`self_level` 越界改为 422） |
+| 口径修订提交 | `1bf2817`（版本号单点化）、`5d258da`（`evidence_level` 透传）、`8de7ce2`（`self_level` 越界改为 422）、2026-11-27（`evidence_level` 冻结为 7 值，非法值 422，见 §4.3） |
 
 **注意（此前存在不一致，已修）**：路由层曾把 `model_version` 硬编码为 `weighted-knowledge-base-v1`，与 `matcher.MODEL_VERSION`、`d4_cases.json` 三处不一致。现已统一为单一来源，接口返回与算法层、回归基线三者一致。
 
@@ -181,7 +181,7 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 | `needs_verification` | `current_level > 0` 且 `evidence_level == "none"` |
 | `mastered` | `current_level >= required_level` 且有证据 |
 
-**`evidence_level`（入参，7 值）**
+**`evidence_level`（入参，7 值，2026-11-27 冻结）**
 
 `none` / `self` / `course` / `project` / `work` / `certificate` / `test`
 
@@ -189,12 +189,13 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 | --- | --- |
 | 不传该字段 / 传 `null` / 传空串 | 按 `self` 处理（不判待验证），HTTP 200 |
 | 显式传 `none` | 按「无证据」处理，产出 `needs_verification` |
-| 传大小写混杂（如 `PROJECT`） | 归一为 `project`，正常判 `mastered` |
-| 传未知值（如 `projct`） | 算法层告警并归为 `none`，产出 `needs_verification`，**HTTP 仍 200**（当前不做枚举硬校验，原因见下） |
+| 传大小写混杂（如 `PROJECT`） | **HTTP 422**（不做大小写归一，需传小写 `project`） |
+| 传中文（如 `课程作业` / `实习`） | **HTTP 422**（不做中文映射） |
+| 传未知值（如 `projct`）或旧值 `verified` | **HTTP 422**，`field = profile.skills.N.evidence_level` |
 
-**证据只影响 `status`，不影响 `match_score`。** 实测同一画像 6 种证据输入（不传 / `null` / 空串 / `none` / `projct` / `PROJECT`），最高分恒为 `0.1170`，仅 `status` 在 `mastered` 与 `needs_verification` 间变化。复测时不要用「分数随证据变化」做断言。
+**证据只影响 `status`，不影响 `match_score`。** 实测「不传 + 7 个合法值」共 8 种输入，最高分恒为 `0.1170`；仅 `none` 判 `needs_verification`，其余（含不传）判 `mastered`。复测时不要用「分数随证据变化」做断言。
 
-> 契约 §2.2 的 `evidence_level` 枚举至今标注「待确认」，因此本轮**未**把它收敛为 `Literal` 硬校验，避免契约冻结时误伤新增合法值。`self_level` 因契约已明确 `int 0~4`，本轮已改为越界 422（见第五节）。建议下一版契约同时冻结证据枚举，届时再补 API 层校验。
+> 口径变更（2026-11-27）：早期版本对未知证据值告警后归为 `none` 并返回 200，中文示例（`"课程作业"`）会被静默接受。现已在 `packages/core/schemas.py` 的 `SkillInput` 用 `Literal` 硬校验，非法值一律 422。**非法证据值不再返回 200，复测按 422 断言。** 算法层 `matcher._normalize_evidence` 对被脚本直接调用的场景仍保留宽容（告警归 `none`），这是有意分层，不是未修。契约依据见 `data_contract.md` §2.2.1、ADR-012。
 
 ### 4.4 返回条数
 
@@ -221,7 +222,7 @@ match_score = Σ(w_i × 达成度_i) / Σ w_i
 | --- | --- | --- |
 | 空画像 | `skills: []` | **HTTP 422**，`field = profile.skills`，提示「至少填报 1 项技能」（冻结单要求 ≥1 项） |
 | 技能不存在 | `skill_id: "SKILL-FAKE-999"` | HTTP 200，该技能被忽略，正常返回 5 条 |
-| 未知证据值 | `evidence_level: "projct"` | HTTP 200，按 `none` 处理 |
+| 未知证据值 | `evidence_level: "projct"` / `"课程作业"` | **HTTP 422**，`field = profile.skills.0.evidence_level`，提示「取值必须是 none / self / course / project / work / certificate / test 之一」 |
 | `self_level` 缺失 | 不传该字段 | HTTP 200，按 **0 级**处理（与显式传 0 结果逐字段一致） |
 | `self_level = 5` / `-1` / `99` | 越界值 | **HTTP 422**，`field = profile.skills.0.self_level` |
 | 缺少 `skill_id` | 只传 `self_level` | **HTTP 422**，`field = profile.skills.0.skill_id`，提示「为必填项」 |
@@ -255,7 +256,7 @@ HTTP 422
 | `data.errors[].field` | 出错的字段路径，点分格式；数组下标用数字（`skills.0`） |
 | `data.errors[].message` | 中文原因：`不能大于 4` / `不能小于 0` / `为必填项` / `至少填报 1 项技能` |
 
-约定不变的部分：字段缺失仍按 0 级处理；未知 `skill_id` 仍告警并忽略；`evidence_level` 非法值仍归一为 `none`（HTTP 200）。
+约定不变的部分：字段缺失仍按 0 级处理；未知 `skill_id` 仍告警并忽略；**`evidence_level` 非法值自 2026-11-27 起返回 422**（此前为归一为 `none` 后返回 200）。
 
 ---
 

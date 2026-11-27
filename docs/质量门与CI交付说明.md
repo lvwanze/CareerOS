@@ -1,6 +1,6 @@
 # 质量门与 CI 交付说明（M5 / 组长清单 P0-1）
 
-对照基准：`origin/main` `d0ea59a`。本文件说明"唯一质量门 + CI"这项 P0 的交付内容、实测证据、以及他人存量代码的处理边界。
+对照基准：2026-11-27 合并态（`96db006` + M2 枚举冻结 `4b8b555` + 防漂移测试；P0-1 交付时基准为 `d0ea59a`）。本文件说明"唯一质量门 + CI"这项 P0 的交付内容、实测证据、以及他人存量代码的处理边界。
 依据新发的《CareerOS 答辩验收清单》（2026-11-25 整理稿），P0-1 除质量门与 CI 外，还要求补 `AGENTS.md`，且其中构建/测试命令须与 `ci.py` 一致——已一并交付。
 
 ## 一、新增文件（都在仓库根，本地未提交）
@@ -28,12 +28,14 @@ python scripts/ci.py
 ```
 PASS  ruff      (exit=0)     # E4/E7/E9/F/I，全 backend + ci.py 自身
 PASS  mypy      (exit=0)     # 11 个源文件，Success: no issues found
-PASS  pytest    (exit=0)     # 131 passed, 1 warning（真实后端）
-PASS  coverage  (exit=0)     # TOTAL 538 stmts, 92% cover
+PASS  pytest    (exit=0)     # 147 passed, 1 warning（真实后端，147 collected）
+PASS  architecture (exit=0)  # 4 passed
+PASS  coverage  (exit=0)     # TOTAL 733 stmts, 91% cover
 质量门全绿 ✅
 ```
 
-- pytest 在两步里各跑一次（测试步骤 + 覆盖率步骤），都是 131 passed。
+实测基准：2026-11-27，合并态（`96db006` + M2 枚举冻结 `4b8b555` + 本 PR 防漂移测试）。
+- pytest 在两步里各跑一次（测试步骤 + 覆盖率步骤），都是 147 passed。
 - 唯一 warning 是 Starlette 的 httpx 弃用提示，与本项目无关。
 - CI 侧 workflow 用 `ubuntu-latest` + Python 3.11，Linux 下 CSV 天然 LF，`scripts/ci.py` 不依赖任何 Windows 特化处理。
 
@@ -45,15 +47,15 @@ PASS  coverage  (exit=0)     # TOTAL 538 stmts, 92% cover
 - **mypy**：对 4 个存在存量类型债的生产模块（schemas / matcher / recommend / health）设 `ignore_errors`，其余模块真实检查；注释写明"负责人修好后删除 override"。
 - 豁免清单逐条写在 `pyproject.toml`，全部标注了归属成员（M1/M2/M3），不是无声跳过。
 
-**M5 自有的 `backend/tests/acceptance/` 没有豁免**，6 个测试文件的导入顺序/未用导入已实际修复，89 条验收用例在修复后仍全过。
+**M5 自有的 `backend/tests/acceptance/` 没有豁免**，6 个测试文件的导入顺序/未用导入已实际修复，90 条验收用例（含赵新增的 TC-EX-10）在修复后仍全过。
 
 越界防护：过程中 ruff `--fix` 曾自动改动他人生产/测试文件，已全部 `git checkout` 还原；最终 `git status` 里除 `pyproject.toml` 的豁免配置外，没有他人生产代码的改动。
 
 ## 四、与组长清单其他项的关系
 
 - `.gitattributes` 同时覆盖 M1-P0-1「固定 CSV 行尾」的基础设施需求：新 clone 后 CSV 为 LF，`sha256sum` 与 manifest 一致。M1 若已单独提交同类文件，合并时保留其一即可。
-- pytest 的 131 passed 与清单附录"106 个 test_ 函数"是同一批测试的不同数法：106 是函数数，参数化展开后为 131 个用例（其中验收套件 89 条）。
-- P0-2「关闭假绿灯」已按组长清单完成（详见 `docs/测试执行结果.md` 2.3.1）：自检模式下依赖 `client` 的接口/端到端用例统一 skip（59 passed / 30 skipped），不再对参考 stub 自证通过；真实后端模式仍 89 passed、全量 131 passed，质量门不受影响。该项独立于本质量门。
+- pytest 的 147 passed 与清单附录的 `def test_` 函数数是同一批测试的不同数法：全仓 122 个函数、参数化展开后 147 条（其中 acceptance 65 个函数展开为 90 条）。换算详见 `docs/测试执行结果.md` §2.2。
+- P0-2「关闭假绿灯」已按组长清单完成（详见 `docs/测试执行结果.md` 2.3.1）：自检模式下依赖 `client` 的接口/端到端用例统一 skip（59 passed / 31 skipped），不再对参考 stub 自证通过；真实后端模式仍 90 passed、全量 147 passed，质量门不受影响。该项独立于本质量门。
 
 ## 五、待用户操作
 

@@ -19,7 +19,7 @@ backend/
 ├── configs/            feature_catalog.yaml（待 M1 补）
 ├── scripts/            数据构建/清洗脚本，train.py 待 M2 补
 └── tests/
-    ├── acceptance/     六层 89 条验收测试（M5 交付）
+    ├── acceptance/     六层验收测试（M5 交付；65 个 test_ 函数 / 参数化展开 90 条）
     │   └── reference/  契约模型、参考算法、stub、真实数据加载
     ├── architecture/   架构测试 4 条 + baseline.py 放行清单（M5 P1）
     └── test_*.py       后端原有单元与 smoke 测试
@@ -61,20 +61,23 @@ CI 的 workflow 见 `.github/workflows/ci.yml`（push/PR 到 main、feature、ho
 架构测试采用「基线 + 显式放行清单」：现状越界在 `backend/tests/architecture/baseline.py`
 登记放行，新增越界即构建失败；详见 `docs/架构测试交付说明.md`。
 
-实测基线（2026-11-25，基准 `453841f`）：ruff PASS / mypy PASS / architecture **4 passed** /
-pytest **135 passed** / coverage 92% → 质量门全绿。
+实测基线（2026-11-27，基准 `96db006` + M2 枚举冻结 `4b8b555` + 本 PR 防漂移测试合并后）：
+ruff PASS / mypy PASS / architecture **4 passed** / pytest **147 passed**（`147 collected`）
+/ coverage **91%**（733 stmts，观测值，`ci.py` 不设硬阈值）→ 质量门全绿。
+记录集数：全仓 `def test_` **122** 个函数，参数化展开后 147 条；
+其中 acceptance 65 个函数展开为 90 条（赵的 TC-EX-10 +1）。换算详见 `docs/测试执行结果.md` §2.2。
 
 ## 4. 验收测试的两种模式（重要口径）
 
-`backend/tests/acceptance/` 是 M5 的 89 条验收测试：
+`backend/tests/acceptance/` 是 M5 的 90 条验收测试：
 
 - **真实后端模式**（仓库内自带 `packages/service`，或设 `CAREEROS_ROOT`）：
-  接口与端到端用例正常执行 → **89 passed / 0 skipped**。
+  接口与端到端用例正常执行 → **90 passed / 0 skipped**。
 - **自检模式**（无后端，独立数据包）：依赖 `client` 的接口/端到端用例**一律 skip** → **59 passed / 30 skipped**。
   这是组长清单 P0-2「关闭假绿灯」的要求：不再退回 `reference/stub_app.py` 对自身断言产出通过状态。
   stub 只作参考实现保留，不作为验收通过依据；数据版本/映射/契约/算法/推荐层仍对 M1 真实数据执行。
 
-**报告口径**：接口与端到端的验收结论一律以真实后端 89 passed 为准；自检模式的接口 skip 不算通过。
+**报告口径**：接口与端到端的验收结论一律以真实后端 90 passed 为准；自检模式的接口 skip 不算通过。
 
 ## 5. 提交前检查
 
@@ -82,4 +85,6 @@ pytest **135 passed** / coverage 92% → 质量门全绿。
 2. 不要改动他人文件（生产代码 `packages/*`、数据 `data/*`）；若 ruff/mypy 报他人存量问题，
    在 `pyproject.toml` 按文件精确豁免并注明归属，不要用 `--fix` 自动改他人代码。
 3. 报问题时附 commit hash，便于区分版本问题与环境问题。
-4. 提交作者与负责人对应关系见后续 `.mailmap`（M5 P1，未做）。
+4. 提交作者与负责人对应关系已用仓库根 `.mailmap` 归一（M5 P1，已交付）：
+   `git log --format='%aN' | sort -u` 实测 5 个名字，与 README 分工一一对应；
+   逐人映射与「代提交」说明见 `docs/提交作者与负责人对照表.md`。

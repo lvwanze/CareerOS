@@ -69,8 +69,8 @@ POST /api/v1/recommendations
     "learning_stage": {},
     "preferences": {},
     "skills": [
-      {"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 2, "evidence_level": "课程作业"},
-      {"skill_id": "SKILL-ONET-2.B.3.e", "self_level": 3, "evidence_level": "实习"}
+      {"skill_id": "SKILL-ONET-2.A.1.a", "self_level": 2, "evidence_level": "course"},
+      {"skill_id": "SKILL-ONET-2.B.3.e", "self_level": 3, "evidence_level": "work"}
     ],
     "constraints": {},
     "career_goals": {}
@@ -79,6 +79,22 @@ POST /api/v1/recommendations
 ```
 
 `learning_stage` / `preferences` / `constraints` / `career_goals` 目前原样接收但不参与计算，保留在示例里是为了说明前端画像字段不会被丢弃。
+
+`evidence_level` 只接受 7 个英文小写值（2026-11-27 冻结，见 `data_contract.md` §2.2.1）：
+
+| 值 | 含义 |
+| --- | --- |
+| `none` | 无证据 |
+| `self` | 用户自述 |
+| `course` | 课程 / 培训 |
+| `project` | 项目经历 |
+| `work` | 工作 / 实习 |
+| `certificate` | 证书 / 认证 |
+| `test` | 客观测评 |
+
+两条缺省约定：**不传该字段（或传 `null`）按 `self` 处理**，不判待验证；**显式传 `none`** 才按无证据处理，技能达标时会判 `needs_verification`。
+
+非法值（中文、拼写错误、大写、已废弃的 `verified`）一律 **422**，`field` 定位到 `profile.skills.N.evidence_level`。早期版本会把未知值静默归一为 `none` 并返回 200，该行为已取消。
 
 校验失败示例（HTTP 422，`data.errors` 按字段逐条定位）：
 
@@ -384,7 +400,7 @@ nodes：
 
 ## 9. 待确认事项
 
-- 推荐接口最终请求结构。
+- ~~推荐接口最终请求结构。~~ 已定（2026-11-27）：见 §3.5 请求示例；`profile.skills` 至少 1 项，`evidence_level` 为 7 值枚举。
 - 推荐结果是否需要单独返回 SkillGap。
 - 发展路径由后端组织还是算法直接返回。
 - 是否需要用户画像独立保存接口。

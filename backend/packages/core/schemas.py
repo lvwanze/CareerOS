@@ -123,7 +123,14 @@ class SkillInput(BaseModel):
         le=4,
         description="用户自评等级(0-4)，字段缺失按 0 处理；不接受字符串/浮点/布尔",
     )
-    evidence_level: Optional[str] = Field(None, description="能力证据状态")
+    evidence_level: Optional[
+        Literal["none", "self", "course", "project", "work", "certificate", "test"]
+    ] = Field(
+        None,
+        description=(
+            "能力证据类型，7 值枚举；不传走默认 self，显式传非法值返回 422"
+        ),
+    )
 
 
 class ProfileInput(BaseModel):

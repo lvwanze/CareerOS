@@ -5,6 +5,7 @@
   TC-EX-01 等级越界 / 02 空技能 / 03 可选字段缺省 / 04 未知技能
   TC-EX-05 超长文本 / 06 类型错误 / 07 连续请求 / 08 知识库文件缺失（待后端）
   TC-EX-09 为本项目补充的必填字段缺失用例。
+  TC-EX-10 证据枚举越界（2026-11-27 新增，随 evidence_level 冻结一并落地）。
 
 异常用例统一要求：不能返回 500，且校验错误要能定位到具体字段。
 """
@@ -319,3 +320,38 @@ def test_TC_EX_09_missing_required_field(client, recommend_path):
     response = client.post(recommend_path, json=payload(profile))
     assert response.status_code != 500, response.text
     assert response.status_code in (200, 422), response.text
+
+
+@pytest.mark.api
+@pytest.mark.exception
+def test_TC_EX_10_evidence_level_out_of_enum(client, recommend_path):
+    """evidence_level 不在冻结的 7 值枚举内：422，错误定位到字段。
+
+    2026-11-27 起（收尾清单 M2 第 1 条 / ADR-012）由 Pydantic Literal 硬校验：
+    中文「课程作业」、拼写错误 projct、大写 PROJECT、旧值 verified 一律 422，
+    不再静默归一为 none 后返回 200。
+
+    末尾断言 service 层枚举与算法层 EVIDENCE_LEVELS 一致：两处各写一份
+    白名单，不同步会让「接口放行、算法归 none」重新出现，必须锁死。
+
+    两个包级 import 放在函数内：一键包自检模式没有 backend/packages，模块顶层
+    import 会让整个 test_api.py collection 失败（P0-2 假绿灯回归）。本用例依赖
+    client，自检模式必被 skip，函数体不执行，import 也就不会触发。
+    """
+    from packages.core.schemas import SkillInput
+    from packages.training.matcher import EVIDENCE_LEVELS
+
+    for bad_value in ("课程作业", "projct", "PROJECT", "verified"):
+        response = client.post(
+            recommend_path,
+            json=payload(skill_level(3, evidence_level=bad_value)),
+        )
+        assert response.status_code == 422, f"{bad_value!r} 应 422：{response.text}"
+        assert "evidence_level" in response.text, f"{bad_value!r} 错误未定位到字段"
+
+    prop = SkillInput.model_json_schema()["properties"]["evidence_level"]
+    service_enum = next(
+        (set(item["enum"]) for item in prop.get("anyOf", [prop]) if "enum" in item),
+        set(),
+    )
+    assert service_enum == set(EVIDENCE_LEVELS), "service 层枚举与算法层白名单不一致"

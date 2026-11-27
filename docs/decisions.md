@@ -236,7 +236,7 @@ README:335 则写明「service 调用算法」属业务允许；ADR-009 只禁�
 
 - 架构测试的 `service_not_import_training` 放行项继续存在，且**只放行推理入口这一种**；
   新增任何 service→training 的依赖都会使构建失败。
-- 数据目录推算保持 4 处并存，新增第 5 处即使架构测试失败。
+- 数据目录推算保持 4 处并存，新增第 5 处即触发架构测试失败。
 - 老师方案里的「api 层」在本项目事实上由 `service` 承担，`core` 只放契约模型，
   与方案图不完全一致——这是有意的取舍，不是遗漏。
 
@@ -252,16 +252,69 @@ README:335 则写明「service 调用算法」属业务允许；ADR-009 只禁�
 
 ---
 
+## ADR-012：evidence_level 枚举冻结与两层缺省
+
+状态：已定（2026-11-26，M2 赵帝臣；口径由组长清单收尾项拍板）
+
+背景：
+
+`evidence_level`（技能证据等级）此前三处口径不一致：`core/schemas.py` 是
+`Optional[str]` 无枚举校验，`api_spec.md` 示例仍写中文值，`matcher.py` docstring
+写明「API 层暂不做硬校验」，而 `model_card.md` 却声称 Pydantic `Literal` 会拦成 422。
+结果：照示例传中文值时被 `_normalize_evidence` 静默归为 `none`，技能直接变
+`needs_verification`，只留一条 warning，脏值照样进 200 响应。
+
+决策：
+
+1. 枚举冻结为 7 个英文值：`none` / `self` / `course` / `project` / `work` /
+   `certificate` / `test`。`core/schemas.py` 改为
+   `Optional[Literal[...]]`，保持 Optional。
+2. 两层缺省：不传 `evidence_level` → 走 `inference.py` 的默认值 `self`；
+   显式传 `none` → 该项记为待验证（`needs_verification`）。
+3. 显式传枚举外的值（含中文旧值）→ HTTP 入口 422，不再静默归一。
+
+影响：`api_spec.md`、`data_contract.md` §2.2、`model_card.md`、`matcher.py`
+docstring 四处同步；验收套件加一条 422 断言。本 ADR 顺延自收尾清单原计划
+「evidence 冻结 = ADR-011」——ADR-011 已由 M3 占用，故编号后移。
+
+---
+
+## ADR-013：漂移监控口径反转（最小实现落地）
+
+状态：已定（2026-11-26，M2 赵帝臣 + M5 薛宏博）
+
+背景：
+
+ADR-010 原文把「PSI 漂移监控」列入第一阶段不做，理由是缺历史数据与稳定基准。
+这一点在「只有冻结静态表」时成立；但收尾清单加分项三要求做一次可演练的最小
+监控，而其前置（按请求落盘的预测记录）在 PR#21 后已具备——`request_id` 按请求
+生成且与响应同源、请求级日志已能落 stdout。
+
+决策（**不修改 ADR-010 原文**，本条记录部分反转）：
+
+1. ADR-010 「第一阶段不强制实现」被推翻一半：落地**最小 PSI 监控 + 一次人工
+   演练**，覆盖画像三项字段（`self_level` 分布、技能数分布、`evidence_level` 分布）。
+2. 基线可取首日预测记录；样本不足时用 `data/processed` 现算，并明确标注为
+   **代理基线**而非真实漂移基线。
+3. **完整成长记录系统、增量更新与市场变化分析仍在第二阶段**（ADR-010 的这部分
+   决策继续有效）。
+
+口径影响：`docs/答辩待办清单.md` 第七章口径五由「明确列为第二阶段」改为
+「ADR-010 的第一阶段不做已被最小实现推翻一半，完整系统仍在第二阶段」。
+实现物为 `scripts/monitor.py` 与 `scripts/drill.py`，演练结论回填第 5 章。
+
+---
+
 ## 变更记录
 
 | 版本 | 日期 | 修改内容 |
-11-18 架构变更：数据契约对齐
-所有API响应统一为 { code, message, data, request_id } 结构
-CareerRecommendation 模型新增三个字段：
-matched_skills: 已掌握的匹配技能ID列表
-skills_to_improve: 需要提升的技能ID列表
-skills_to_verify: 需要验证的技能ID列表
-GapDetail 模型更名为 SkillGap 并更新字段
+|---|---|---|
+| v1 | 2026-11-18 | 架构变更：数据契约对齐；所有 API 响应统一为 `{ code, message, data, request_id }` 结构 |
+| v2 | 2026-11-18 | `CareerRecommendation` 新增 `matched_skills` / `skills_to_improve` / `skills_to_verify` 三个字段 |
+| v3 | 2026-11-18 | `GapDetail` 更名为 `SkillGap` 并更新字段 |
+| v4 | 2026-11-26 | 新增 ADR-011（分层取舍与两处越界的收敛条件，M3） |
+| v5 | 2026-11-26 | 新增 ADR-012（evidence_level 冻结为 7 值枚举，M2） |
+| v6 | 2026-11-26 | 新增 ADR-013（漂移监控口径反转：最小监控落地，完整成长记录仍在第二阶段，M2/M5） |
 
 
 说明：

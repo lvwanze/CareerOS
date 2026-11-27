@@ -36,6 +36,36 @@
 
 用户自评不等于客观能力证明。
 
+### 2.2.1 能力证据枚举（`evidence_level`，2026-11-27 冻结）
+
+只接受以下 7 个英文小写值，**不做大小写归一，也不做中文映射**：
+
+| 值 | 含义 |
+| --- | --- |
+| `none` | 无证据 |
+| `self` | 用户自述 |
+| `course` | 课程 / 培训 |
+| `project` | 项目经历 |
+| `work` | 工作 / 实习 |
+| `certificate` | 证书 / 认证 |
+| `test` | 客观测评 |
+
+两条缺省约定：
+
+1. **不传该字段或传 `null`**：按 `self` 处理，不判待验证（用户勾选了技能即视为自述有证据）。
+2. **显式传 `none`**：按无证据处理，技能达标时判 `needs_verification`。
+
+分层校验（两处分工固定，不得互相替代）：
+
+| 层 | 行为 | 位置 |
+| --- | --- | --- |
+| HTTP 入口 | 非法值 **422**，`field` 定位到 `profile.skills.N.evidence_level` | `packages/core/schemas.py` `SkillInput`（`Literal`） |
+| 算法层直调 | 未知值告警后归 `none`，不抛异常 | `packages/training/matcher.py` `_normalize_evidence` |
+
+第二层保留宽容是有意的：matcher 会被脚本、离线任务、单元测试直接调用，不该因一个字段中断整批计算。但**对外 HTTP 边界不允许静默降级**，脏值在进入业务逻辑前就被拦下。
+
+> 变更提示：2026-11-20 及以前，HTTP 层也做归一，中文「课程作业」被静默转成 `none` 并返回 200，那项技能随之变成 `needs_verification`。该行为已取消，调用方需改用上表英文值；旧值 `verified` 同样不再接受。
+
 ## 3. 核心数据模型
 
 ### 3.1 UserProfile：用户画像
@@ -300,10 +330,10 @@ level 等于父节点 +1；父子类型必须是 occupation→category→skill�
 
 - [x] **用户画像各字段的最终必填规则**：推荐链路的画像输入为 `ProfileInput`（`backend/packages/core/schemas.py:129`），其中 `skills` 至少 1 项，空数组或非 list 由 `_reject_empty_skills` 返回 422（`backend/packages/service/routers/recommend.py`）；`user_id` 为 `Optional[str]`，缺省时路由填 `"anonymous"`（`recommend.py:149`）。单条技能的 `self_level` 越界由 `SkillInput` 的 `ge=0/le=4` 拦成 422，不静默丢弃。§3.1 表格中的 `user_id` 必填指持久化用户模型，与推荐链路的匿名入参不是同一场景。
 - [x] **技能等级量表及职业要求等级**：名义量表 0～4（§2.2）；`required_level` 经 `IM>=3.0` 清洗后当前数据集**实际值域 1～3**（1 级 3 条 / 2 级 454 条 / 3 级 35 条，共 492 条），无 0、无 4。测试造数按实际 1～3，勿按 0 造用例。
-- [x] **evidence_level 的具体枚举**：共 7 值——`none / self / course / project / work / certificate / test`，定义于 `backend/packages/training/matcher.py` 的 `EVIDENCE_LEVELS` 常量。
+- [x] **evidence_level 的具体枚举**：共 7 值——`none / self / course / project / work / certificate / test`，定义于 `backend/packages/training/matcher.py` 的 `EVIDENCE_LEVELS` 常量（ADR-012）。分层校验见 §2.2.1：HTTP 入口非法值 422，不传按 `self`、显式 `none` 判待验证；算法层直调仍宽容归 `none`。
 - [x] **importance 的取值和归一化方式**：数据侧存 O\*NET 原始 IM，**实际值域 3.00～4.88**（名义 1～5，但 1、2 级无记录），不做归一化；算法层按 `(IM-1)/4` 归一化后乘 IDF 得权重（`weight = importance_norm × IDF`，`IDF = ln((1+N)/(1+df))+1`，N 为职业总数、df 为要求该技能的职业数），全程内存计算，不回写数据文件。归一化阈值 3.0 对应权重下界 0.5000，与模型卡一致。
 - [x] **match_score 的计算范围**：`[0.000, 1.000]`（`schemas.py` 中 `ge=0, le=1`），全 0 级 = 0.000、全 4 级 = 1.000；是模型内部相对匹配指标，不代表就业概率或录取概率。
 - [x] **DevelopmentPath 的具体生成责任**：归**后端服务层**，由路由 `backend/packages/service/routers/recommend.py:129-152` 拼装；算法层只返回 `recommendations[].skill_gaps`（含 `skill_id / gap / current_level / required_level / importance / status`），不产出路径。节点规则：仅取 `gap > 0` 的技能，`path_id = PATH-{occupation_id}`，`node_id = {occupation_id}-{skill_id}`，`priority` 按差距顺序从 1 递增，`status` 恒为 `not_started`。**注意**：当前路径是按差距排序的技能列表，不是「初级→中级→高级」的分阶段树，勿作树形阶段解读。
 - [x] **原始职业数据与统一 ID 的映射方式**：统一 ID = 类型前缀 `OCC-` / `SKILL-` + `ONET-` + 原始码（如 `OCC-ONET-15-1211.00`、`SKILL-ONET-2.A.1.a`）；三表均有 `source` 与 `source_id` 保留原始 SOC / Element ID 可回溯。ID 含 `15-1211.00` 这类带小数点段，**全程按字符串处理，禁止转数值**（转 float 会丢精度）。
 
-变更记录：2026-11-27 由 M1 高帅龙按 M2 赵帝臣结论收口，经组长确认。
+变更记录：2026-11-27 由 M1 高帅龙按 M2 赵帝臣结论收口，经组长确认；同日合并 PR #23 时补入 evidence 分层校验交叉引用（§2.2.1）。
