@@ -1,6 +1,6 @@
 # 后端验收测试套件（acceptance）
 
-测试与报告：薛宏博。六层 89 条验收用例，**只新增本目录，不改任何生产代码和接口**。
+测试与报告：薛宏博。六层 90 条验收用例，**只新增本目录，不改任何生产代码和接口**。
 
 ## 一、这个目录测什么
 
@@ -9,7 +9,7 @@
 | 数据版本 | `test_data_version.py` | 21 | M1 冻结包的 manifest、sha256、行数、主键唯一、无孤立引用 |
 | 中英映射 | `test_name_mapping.py` | 13 | 技能/职业中英映射条数、ID 对应、接口中文字段 |
 | 契约 | `test_contract.py` | 23 | 字段必填、类型、枚举、命名规范 |
-| 接口与异常 | `test_api.py` | 15 | 四个接口正常流程 + 异常边界（含 `self_level` 类型、status 结构） |
+| 接口与异常 | `test_api.py` | 16 | 四个接口正常流程 + 异常边界（含 `self_level` 类型、status 结构、`evidence_level` 7 值枚举越界 422） |
 | 算法与推荐 | `test_algorithm.py`、`test_recommendation.py` | 15 | 分数范围、确定性、典型画像、发展树 |
 | 端到端 | `test_e2e.py` | 2 | 从画像到推荐结果、发展路径整链 |
 
@@ -23,8 +23,8 @@ python -m pytest tests/acceptance -q
 
 依赖见 `backend/requirements.txt`：pytest / httpx / pandas / numpy / fastapi。
 
-- **接了真实后端**（仓库 clone 后自带 `packages/service`，或设 `CAREEROS_ROOT=<后端路径>`）：自动用真实 app，跑 **89 passed**（接口用例正常执行）。
-- **没接后端**（独立数据包/自检）：跑 **59 passed / 30 skipped**。依赖 `client` 的接口与端到端用例在自检模式下**一律 skip，不对参考 stub 自证通过**（清单 P0-2 关闭假绿灯）；通过的数据版本/静态映射/契约/算法/推荐层仍对 M1 真实交付数据执行。stub 仅作为参考实现保留，不作为验收通过依据。
+- **接了真实后端**（仓库 clone 后自带 `packages/service`，或设 `CAREEROS_ROOT=<后端路径>`）：自动用真实 app，跑 **90 passed**（接口用例正常执行）。
+- **没接后端**（独立数据包/自检）：跑 **59 passed / 31 skipped**。依赖 `client` 的接口与端到端用例在自检模式下**一律 skip，不对参考 stub 自证通过**（清单 P0-2 关闭假绿灯）；通过的数据版本/静态映射/契约/算法/推荐层仍对 M1 真实交付数据执行。stub 仅作为参考实现保留，不作为验收通过依据。
 
 跑全量（`backend/` 下）确认和后端原有测试无冲突：
 
@@ -32,15 +32,15 @@ python -m pytest tests/acceptance -q
 python -m pytest tests -q
 ```
 
-## 三、实测结果（基准 main `a36acd6`，2026-11-26）
+## 三、实测结果（2026-11-27 合并态：`96db006` + M2 枚举冻结 `4b8b555` + 防漂移测试）
 
 ```
-python -m pytest tests/acceptance -q   →  89 passed / 0 failed
-python -m pytest backend/tests -q      →  144 passed  （含后端原有测试 + 4 条架构测试）
-python scripts/ci.py                   →  五步全绿（ruff / mypy / architecture / pytest / coverage 92%）
+python -m pytest tests/acceptance -q   →  90 passed / 0 failed
+python -m pytest backend/tests -q      →  147 passed  （含后端原有测试 + 4 条架构测试 + 2 条防漂移测试；122 个 def test_ 展开）
+python scripts/ci.py                   →  五步全绿（ruff / mypy / architecture / pytest / coverage 91%，733 stmts，无硬阈值）
 ```
 
-自检模式（无后端）：59 passed / 30 skipped（P0-2 关闭假绿灯后，接口用例全部 skip）。
+自检模式（无后端）：59 passed / 31 skipped（P0-2 关闭假绿灯后，接口用例全部 skip）。
 
 > 环境提示：Windows 若设了 `core.autocrlf=true`，CSV 会被检出成 CRLF，导致后端原有 `test_name_mapping` 出现 4 条换行假失败；本套件的数据校验读 git blob 规范字节，不受影响，CI（Linux/LF）不复现。
 
@@ -53,6 +53,6 @@ python scripts/ci.py                   →  五步全绿（ruff / mypy / archite
 - 发展树口径（PR#18）：`/api/v1/tree/{id}` 为正式路径，旧 `/v1/tree/{id}` 保留并带 `Deprecation` 头；未知职业 404，不再返回 mock。TC-API-06 已按真实结构断言。
 - `user_id` 必填、`goal_description` 上限 2000 字：规则已定、代码 pending，相关用例暂按兜底断言，落地后收紧。
 
-> **口径升级已复测**：TC-API-06 / TC-MAP-08 / TC-DATA-12 按 PR#18 新口径升级的断言，已于 2026-11-26 在合入 PR#18 的 `a36acd6` 真实后端上复跑通过（单跑 `3 passed`，验收套件 `89 passed / 0 skipped`）。自检模式因无真实 app 仍一律 skip，不对 stub 自证通过（P0-2）。
+> **口径升级已复测**：TC-API-06 / TC-MAP-08 / TC-DATA-12 按 PR#18 新口径升级的断言，已于 2026-11-26 在 `a36acd6` 真实后端上复跑通过（单跑 `3 passed`）；2026-11-27 赵新增 TC-EX-10（`evidence_level` 越界 422）后验收套件为 90 条、真实后端全过。自检模式因无真实 app 仍一律 skip，不对 stub 自证通过（P0-2）。
 
 维护与决策理由见同目录外的《测试侧决策记录.md》。
