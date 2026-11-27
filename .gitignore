@@ -13,8 +13,6 @@ backend/data/raw/
 !backend/data/reference/
 !backend/data/reference/**
 _main_check/
-backend/models/*
-!backend/models/.gitkeep
 backend/predictions.jsonl
 backend/mlflow/
 .pytest_cache/
