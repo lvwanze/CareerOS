@@ -6,7 +6,7 @@
 
 所有模块必须遵循统一的数据结构。未经沟通，不得擅自修改公共字段名称、数据类型和业务含义。
 
-当前版本为第一阶段 MVP 草案，标记为「待确认」的字段需要相关负责人确认后才能冻结。
+当前版本为第一阶段 MVP。原「待确认事项」（§8）已于 2026-11-27 全部定稿，结论见第 8 节；后续新增字段仍需相关负责人确认后才能冻结。
 
 ## 2. 全局数据规范
 
@@ -87,7 +87,7 @@ career_goals：
 | target_occupations | list[str] | 用户主动选择的职业方向 |
 | goal_description | str | 个人目标描述 |
 
-注意：以上为 MVP 建议字段，最终必填规则需要与算法及后端负责人确认。
+注意：以上为 MVP 建议字段；推荐链路的最终必填规则已定（`skills` 至少 1 项、`user_id` 可选缺省 anonymous），结论见 §8。
 
 ### 3.2 Skill：技能定义
 
@@ -121,7 +121,7 @@ career_goals：
 | required_level | integer | 是 | 职业对技能的最低要求等级,实际值域：经过数据清洗后实际值为1-3
 说明：理论值域0-4，当前数据集经IM>=3.0筛选后仅出现1-3级 |
 
-importance 的具体取值范围和归一化方式由算法负责人确认。
+importance 的具体取值范围和归一化方式已定（存原始 IM，值域 3.00～4.88，算法层归一化），结论见 §8。
 
 ### 3.5 Recommendation：职业推荐结果
 
@@ -135,7 +135,7 @@ importance 的具体取值范围和归一化方式由算法负责人确认。
 | skills_to_verify | list[str] | 是 | 待验证技能 ID |
 | recommendation_reasons | list[str] | 是 | 推荐依据 |
 
-match_score 的范围、计算方法及解释由算法负责人确认。
+match_score 的范围、计算方法及解释已定（[0.000, 1.000]，相对匹配指标），结论见 §8。
 
 该分数是模型内部的相对匹配指标，不代表就业概率或录取概率。
 
@@ -294,12 +294,16 @@ level 等于父节点 +1；父子类型必须是 occupation→category→skill�
 5. 同步修改 schemas.py 和相关接口。
 6. 通知所有受影响成员。
 
-## 8. 待确认事项
+## 8. 事项结论（已定）
 
-- 用户画像各字段的最终必填规则。
-- 技能等级量表及职业要求等级。
-- evidence_level 的具体枚举。
-- importance 的取值和归一化方式。
-- match_score 的计算范围。
-- DevelopmentPath 的具体生成责任。
-- 原始职业数据与统一 ID 的映射方式。
+> 2026-11-27 收口：以下 7 条原为「待确认事项」，经 M2 赵帝臣给出结论、数据侧逐条对照代码与实测数据核实、组长确认后定稿。每条标注结论与代码依据，供测试与答辩直接引用。字段定义仍在前文各节，本节只记录口径结论。
+
+- [x] **用户画像各字段的最终必填规则**：推荐链路的画像输入为 `ProfileInput`（`backend/packages/core/schemas.py:129`），其中 `skills` 至少 1 项，空数组或非 list 由 `_reject_empty_skills` 返回 422（`backend/packages/service/routers/recommend.py`）；`user_id` 为 `Optional[str]`，缺省时路由填 `"anonymous"`（`recommend.py:149`）。单条技能的 `self_level` 越界由 `SkillInput` 的 `ge=0/le=4` 拦成 422，不静默丢弃。§3.1 表格中的 `user_id` 必填指持久化用户模型，与推荐链路的匿名入参不是同一场景。
+- [x] **技能等级量表及职业要求等级**：名义量表 0～4（§2.2）；`required_level` 经 `IM>=3.0` 清洗后当前数据集**实际值域 1～3**（1 级 3 条 / 2 级 454 条 / 3 级 35 条，共 492 条），无 0、无 4。测试造数按实际 1～3，勿按 0 造用例。
+- [x] **evidence_level 的具体枚举**：共 7 值——`none / self / course / project / work / certificate / test`，定义于 `backend/packages/training/matcher.py` 的 `EVIDENCE_LEVELS` 常量。
+- [x] **importance 的取值和归一化方式**：数据侧存 O\*NET 原始 IM，**实际值域 3.00～4.88**（名义 1～5，但 1、2 级无记录），不做归一化；算法层按 `(IM-1)/4` 归一化后乘 IDF 得权重（`weight = importance_norm × IDF`，`IDF = ln((1+N)/(1+df))+1`，N 为职业总数、df 为要求该技能的职业数），全程内存计算，不回写数据文件。归一化阈值 3.0 对应权重下界 0.5000，与模型卡一致。
+- [x] **match_score 的计算范围**：`[0.000, 1.000]`（`schemas.py` 中 `ge=0, le=1`），全 0 级 = 0.000、全 4 级 = 1.000；是模型内部相对匹配指标，不代表就业概率或录取概率。
+- [x] **DevelopmentPath 的具体生成责任**：归**后端服务层**，由路由 `backend/packages/service/routers/recommend.py:129-152` 拼装；算法层只返回 `recommendations[].skill_gaps`（含 `skill_id / gap / current_level / required_level / importance / status`），不产出路径。节点规则：仅取 `gap > 0` 的技能，`path_id = PATH-{occupation_id}`，`node_id = {occupation_id}-{skill_id}`，`priority` 按差距顺序从 1 递增，`status` 恒为 `not_started`。**注意**：当前路径是按差距排序的技能列表，不是「初级→中级→高级」的分阶段树，勿作树形阶段解读。
+- [x] **原始职业数据与统一 ID 的映射方式**：统一 ID = 类型前缀 `OCC-` / `SKILL-` + `ONET-` + 原始码（如 `OCC-ONET-15-1211.00`、`SKILL-ONET-2.A.1.a`）；三表均有 `source` 与 `source_id` 保留原始 SOC / Element ID 可回溯。ID 含 `15-1211.00` 这类带小数点段，**全程按字符串处理，禁止转数值**（转 float 会丢精度）。
+
+变更记录：2026-11-27 由 M1 高帅龙按 M2 赵帝臣结论收口，经组长确认。
